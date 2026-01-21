@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    height: 100%;
+    min-height: 100vh;
+    width: 100vw;
+    background-color: #0f172a;
+    color-scheme: dark;
+    transition: background 0.4s;
+    overscroll-behavior: none;
+    @apply antialiased bg-gray-50 dark:bg-gray-900;
+  }
+  html.light body, html.light {
+    background-color: #f8fafc !important;
+    color-scheme: light;
+  }
+  html.dark body, html.dark {
+    background-color: #0f172a !important;
+    color-scheme: dark;
+
+  }
+}
+
+@layer utilities {
+  .bg-gradient-shimmer {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 1000px 100%;
+    animation: shimmer 2s infinite linear;
+  }
+  
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 dark:bg-gray-800;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-400 dark:bg-gray-600 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-500 dark:bg-gray-500;
+}
