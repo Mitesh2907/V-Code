@@ -40,8 +40,8 @@ const Header = () => {
     <header className={`
       sticky top-0 z-50 w-full 
       transition-all duration-300
-      ${isScrolled 
-        ? 'bg-transparent dark:bg-transparent border-b border-gray-200 dark:border-gray-800' 
+      ${isScrolled
+        ? 'bg-transparent dark:bg-transparent border-b border-gray-200 dark:border-gray-800'
         : 'bg-transparent dark:bg-transparent border-b border-gray-200/50 dark:border-gray-800/50'
       }
     `}>
@@ -101,19 +101,17 @@ const Header = () => {
               title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               <div className="relative w-5 h-5">
-                <Sun 
-                  className={`absolute inset-0 w-5 h-5 transition-all duration-300 ${
-                    isDarkMode 
-                      ? 'rotate-90 scale-0 opacity-0' 
-                      : 'rotate-0 scale-100 opacity-100 text-yellow-500'
-                  }`} 
+                <Sun
+                  className={`absolute inset-0 w-5 h-5 transition-all duration-300 ${isDarkMode
+                    ? 'rotate-90 scale-0 opacity-0'
+                    : 'rotate-0 scale-100 opacity-100 text-yellow-500'
+                    }`}
                 />
-                <Moon 
-                  className={`absolute inset-0 w-5 h-5 transition-all duration-300 ${
-                    isDarkMode 
-                      ? 'rotate-0 scale-100 opacity-100 text-blue-400' 
-                      : '-rotate-90 scale-0 opacity-0'
-                  }`} 
+                <Moon
+                  className={`absolute inset-0 w-5 h-5 transition-all duration-300 ${isDarkMode
+                    ? 'rotate-0 scale-100 opacity-100 text-blue-400'
+                    : '-rotate-90 scale-0 opacity-0'
+                    }`}
                 />
               </div>
               <span className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-0 h-0.5 bg-gradient-to-r from-yellow-400 to-blue-500 group-hover:w-full transition-all duration-300"></span>
@@ -142,21 +140,18 @@ const Header = () => {
               <div className="relative">
                 <button
                   onClick={() => setIsAvatarOpen(prev => !prev)}
-                  className="hidden sm:inline-flex items-center p-0.5 rounded-full focus:outline-none"
-                  aria-haspopup="true"
-                  aria-expanded={isAvatarOpen}
+                  className="hidden sm:inline-flex items-center justify-center w-8 h-8 rounded-full 
+             bg-gradient-to-br from-blue-500 to-purple-600 
+             text-white text-sm font-semibold"
                 >
-                  <img
-                    src={user.avatar}
-                    alt={user.name || 'User avatar'}
-                    className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-800"
-                  />
+                  {user?.fullName?.charAt(0).toUpperCase()}
                 </button>
+
 
                 {isAvatarOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg py-1 z-50">
                     <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700">
-                      {user.name}
+                      {user.fullName}
                     </div>
                     <button
                       onClick={() => {
@@ -235,15 +230,13 @@ const Header = () => {
                       </>
                     )}
                   </div>
-                  <div className={`w-11 h-6 rounded-full transition-colors duration-300 ${
-                    isDarkMode ? 'bg-blue-500' : 'bg-yellow-400'
-                  }`}>
-                    <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-300 ${
-                      isDarkMode ? 'translate-x-5' : 'translate-x-0.5'
-                    }`}></div>
+                  <div className={`w-11 h-6 rounded-full transition-colors duration-300 ${isDarkMode ? 'bg-blue-500' : 'bg-yellow-400'
+                    }`}>
+                    <div className={`w-5 h-5 bg-white rounded-full shadow-md transform transition-transform duration-300 ${isDarkMode ? 'translate-x-5' : 'translate-x-0.5'
+                      }`}></div>
                   </div>
                 </button>
-                
+
                 <Link
                   to="/rooms"
                   onClick={() => setIsMenuOpen(false)}

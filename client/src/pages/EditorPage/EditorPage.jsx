@@ -7,12 +7,14 @@ import {
 } from 'lucide-react';
 import VideoCallPanel from '../../components/video/VideoCallPanel';
 import ChatPanel from '../../components/chat/ChatPanel';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Button from '../../components/common/Button/Button';
 import { SkeletonEditor } from '../../components/common/Skeleton';
 import toast from 'react-hot-toast';
 
+
 const EditorPage = () => {
+  const navigate = useNavigate();
   const { roomId } = useParams();
   const isRoomMode = !!roomId;
   const [loading, setLoading] = useState(true);
@@ -39,6 +41,7 @@ console.log(result);`);
   const [showChat, setShowChat] = useState(false);
   const [terminalOutput, setTerminalOutput] = useState('');
   const [fileSystem, setFileSystem] = useState({
+    id: 'project',
     name: 'project',
     type: 'folder',
     children: [
@@ -511,32 +514,36 @@ $ Ready for next command...`);
           <div className="bg-gray-900 border-b border-gray-800">
             <div className="flex items-center px-2 overflow-x-auto space-x-1">
               {fileSystem.children
-                .filter(item => item.type === 'file')
-                .map(file => (
-                  <button
-                    key={file.id}
-                    onClick={() => selectFile(file)}
-                    className={`px-3 py-2 text-xs font-medium whitespace-nowrap flex items-center group ${
-                      activeFile?.id === file.id
-                        ? 'bg-gray-800 text-gray-100 border-b-2 border-blue-500'
-                        : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-                    }`}
-                  >
-                    <FileText className="h-3.5 w-3.5 mr-2" />
-                    <span className="truncate max-w-xs">{file.name}</span>
-                    {activeFile?.id === file.id && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteItem(file.id, e);
-                        }}
-                        className="ml-2 opacity-0 group-hover:opacity-100 p-1 rounded text-gray-300 hover:text-red-400"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    )}
-                  </button>
-                ))}
+  .filter(item => item.type === 'file')
+  .map(file => (
+    <div key={file.id} className="relative group"> {/* wrapper div डालें */}
+      <button
+        onClick={() => selectFile(file)}
+        className={`w-full px-3 py-2 text-xs font-medium whitespace-nowrap flex items-center ${
+          activeFile?.id === file.id
+            ? 'bg-gray-800 text-gray-100 border-b-2 border-blue-500'
+            : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+        }`}
+      >
+        <FileText className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
+        <span className="truncate flex-1 text-left">{file.name}</span>
+      </button>
+      
+      {/* Delete button को अलग position में रखें */}
+      {activeFile?.id === file.id && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            deleteItem(file.id, e);
+          }}
+          className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded text-gray-300 hover:text-red-400 hover:bg-gray-700/50 z-10"
+          title="Delete file"
+        >
+          <Trash2 className="h-3 w-3" />
+        </button>
+      )}
+    </div>
+  ))}
             </div>
           </div>
 

@@ -33,18 +33,18 @@ const JoinRoomPage = () => {
       setLoading(false);
       navigate(`/editor/${encodeURIComponent(roomNumber)}`);
     } catch (err) {
-      setLoading(false);
+    setLoading(false);
       toast.error('Unable to join room');
     }
   };
 
-  return (
+    return (
     <div className="container mx-auto px-4 py-12 max-w-2xl">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold mb-2">Join a Room</h1>
         <p className="text-gray-600 dark:text-gray-400 max-w-xl mx-auto text-sm">Enter the Room Number and password if required.</p>
-      </div>
-
+        </div>
+        
       <Card>
         <CardHeader>
           <CardTitle>Enter Room</CardTitle>
@@ -52,7 +52,7 @@ const JoinRoomPage = () => {
         </CardHeader>
 
         <CardContent className="space-y-4">
-          <Input
+        <Input
             label="Room Number"
             placeholder="e.g., VC-1023"
             value={roomNumber}
@@ -60,22 +60,22 @@ const JoinRoomPage = () => {
             required
           />
 
-          <Input
-            type="password"
+                <Input
+                  type="password"
             label="Password (optional)"
             placeholder="Enter password if the room is private"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
             helperText="Enter password if the room is private"
-          />
+                />
         </CardContent>
 
         <CardFooter>
           <Button variant="primary" size="lg" icon={ArrowRight} onClick={handleJoin} loading={loading} fullWidth>
             Join Room
-          </Button>
+              </Button>
         </CardFooter>
-      </Card>
+              </Card>
     </div>
   );
 };

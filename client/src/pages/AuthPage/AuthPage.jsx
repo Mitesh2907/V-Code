@@ -55,24 +55,33 @@ const AuthPage = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
+  e.preventDefault();
 
-    try {
-      if (isLogin) {
-        await login(formData.email, formData.password);
-        navigate('/profile');
-      } else {
-        await signup(formData.name, formData.email, formData.password);
-        navigate('/profile');
-      }
-    } catch (error) {
-      console.error('Auth error:', error);
+  const isValid = validateForm();
+  if (!isValid) {
+    return; // ⛔ yahin stop
+  }
+
+  try {
+    if (isLogin) {
+      await login(formData.email, formData.password);
+      navigate('/profile');
+    } else {
+      await signup(
+        formData.name,
+        formData.email,
+        formData.password,
+        formData.confirmPassword
+      );
+      navigate('/profile');
     }
-  };
+  } catch (error) {
+    setErrors({
+      form: error?.response?.data?.message || "Something went wrong"
+    });
+  }
+};
+
 
   if (loading) {
     return (
@@ -83,18 +92,18 @@ const AuthPage = () => {
               <SkeletonBox height="h-8" width="w-3/4" className="mx-auto mb-4" shimmer />
               <SkeletonText lines={2} />
             </div>
-            
+
             <div className="space-y-4">
               {!isLogin && <SkeletonBox height="h-12" shimmer />}
               <SkeletonBox height="h-12" shimmer />
               <SkeletonBox height="h-12" shimmer />
               {!isLogin && <SkeletonBox height="h-12" shimmer />}
             </div>
-            
+
             <div className="mt-6">
               <SkeletonBox height="h-12" shimmer />
             </div>
-            
+
             <div className="mt-6">
               <SkeletonBox height="h-6" width="w-full" shimmer />
             </div>
@@ -147,7 +156,7 @@ const AuthPage = () => {
                 )}
               </h1>
               <p className="text-xl text-gray-600 dark:text-gray-300 leading-relaxed">
-                {isLogin 
+                {isLogin
                   ? 'Sign in to continue your collaborative coding journey'
                   : 'Join thousands of developers building amazing projects together in real-time'
                 }
@@ -201,7 +210,7 @@ const AuthPage = () => {
                 {isLogin ? 'Welcome Back' : 'Create Account'}
               </h1>
               <p className="text-gray-600 dark:text-gray-400">
-                {isLogin 
+                {isLogin
                   ? 'Sign in to your V-Code account to continue'
                   : 'Join thousands of developers coding together'
                 }
@@ -214,139 +223,139 @@ const AuthPage = () => {
                 {isLogin ? 'Welcome Back' : 'Create Account'}
               </h1>
               <p className="text-gray-600 dark:text-gray-400">
-                {isLogin 
+                {isLogin
                   ? 'Sign in to continue'
                   : 'Get started in seconds'
                 }
               </p>
             </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {!isLogin && (
+                <Input
+                  label="Full Name"
+                  type="text"
+                  placeholder="John Doe"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  error={errors.name}
+                  icon={User}
+                  required
+                />
+              )}
+
               <Input
-                label="Full Name"
-                type="text"
-                placeholder="John Doe"
-                value={formData.name}
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                error={errors.name}
-                icon={User}
+                label="Email Address"
+                type="email"
+                placeholder="you@example.com"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                error={errors.email}
+                icon={Mail}
                 required
               />
-            )}
 
-            <Input
-              label="Email Address"
-              type="email"
-              placeholder="you@example.com"
-              value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
-              error={errors.email}
-              icon={Mail}
-              required
-            />
-
-            <Input
-              label="Password"
-              type="password"
-              placeholder="••••••••"
-              value={formData.password}
-              onChange={(e) => setFormData({...formData, password: e.target.value})}
-              error={errors.password}
-              icon={Lock}
-              required
-            />
-
-            {!isLogin && (
               <Input
-                label="Confirm Password"
+                label="Password"
                 type="password"
                 placeholder="••••••••"
-                value={formData.confirmPassword}
-                onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
-                error={errors.confirmPassword}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                error={errors.password}
                 icon={Lock}
                 required
               />
-            )}
 
-            {isLogin && (
-              <div className="flex items-center justify-between">
-                <label className="flex items-center">
-                  <input type="checkbox" className="rounded border-gray-300" />
-                  <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
-                    Remember me
-                  </span>
-                </label>
+              {!isLogin && (
+                <Input
+                  label="Confirm Password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  error={errors.confirmPassword}
+                  icon={Lock}
+                  required
+                />
+              )}
+
+              {isLogin && (
+                <div className="flex items-center justify-between">
+                  <label className="flex items-center">
+                    <input type="checkbox" className="rounded border-gray-300" />
+                    <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
+                      Remember me
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => alert('Password reset would be implemented')}
+                    className="text-sm text-blue-600 hover:text-blue-700"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                variant="primary"
+                loading={authLoading}
+                icon={ArrowRight}
+                fullWidth
+              >
+                {isLogin ? 'Sign In' : 'Create Account'}
+              </Button>
+            </form>
+
+            {/* Toggle between Login/Signup */}
+            <div className="mt-6 text-center">
+              <p className="text-gray-600 dark:text-gray-400">
+                {isLogin ? "Don't have an account?" : "Already have an account?"}
                 <button
                   type="button"
-                  onClick={() => alert('Password reset would be implemented')}
-                  className="text-sm text-blue-600 hover:text-blue-700"
+                  onClick={() => setIsLogin(!isLogin)}
+                  className="ml-2 text-blue-600 hover:text-blue-700 font-medium"
                 >
-                  Forgot password?
+                  {isLogin ? 'Sign up' : 'Sign in'}
                 </button>
-              </div>
-            )}
+              </p>
+            </div>
 
-            <Button
-              type="submit"
-              variant="primary"
-              loading={authLoading}
-              icon={ArrowRight}
-              fullWidth
-            >
-              {isLogin ? 'Sign In' : 'Create Account'}
-            </Button>
-          </form>
-
-          {/* Toggle between Login/Signup */}
-          <div className="mt-6 text-center">
-            <p className="text-gray-600 dark:text-gray-400">
-              {isLogin ? "Don't have an account?" : "Already have an account?"}
-              <button
-                type="button"
-                onClick={() => setIsLogin(!isLogin)}
-                className="ml-2 text-blue-600 hover:text-blue-700 font-medium"
-              >
-                {isLogin ? 'Sign up' : 'Sign in'}
-              </button>
-            </p>
-          </div>
-
-          {/* Demo Credentials Hint */}
-          <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
-            <div className="flex items-start space-x-3">
-              <CheckCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                <span className="font-semibold text-gray-900 dark:text-white">Demo Credentials:</span>
-                <div className="mt-1 space-y-1">
-                  <div>Email: <span className="font-mono text-blue-600 dark:text-blue-400">demo@example.com</span></div>
-                  <div>Password: <span className="font-mono text-blue-600 dark:text-blue-400">any 6+ characters</span></div>
+            {/* Demo Credentials Hint */}
+            <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg border border-blue-200/50 dark:border-blue-800/50">
+              <div className="flex items-start space-x-3">
+                <CheckCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  <span className="font-semibold text-gray-900 dark:text-white">Demo Credentials:</span>
+                  <div className="mt-1 space-y-1">
+                    <div>Email: <span className="font-mono text-blue-600 dark:text-blue-400">demo@example.com</span></div>
+                    <div>Password: <span className="font-mono text-blue-600 dark:text-blue-400">any 6+ characters</span></div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Terms */}
-          <p className="mt-6 text-xs text-center text-gray-500 dark:text-gray-500">
-            By continuing, you agree to our{' '}
-            <button
-              type="button"
-              onClick={() => alert('Terms of Service would be shown')}
-              className="text-blue-600 hover:text-blue-700"
-            >
-              Terms of Service
-            </button>{' '}
-            and{' '}
-            <button
-              type="button"
-              onClick={() => alert('Privacy Policy would be shown')}
-              className="text-blue-600 hover:text-blue-700"
-            >
-              Privacy Policy
-            </button>
-          </p>
+            {/* Terms */}
+            <p className="mt-6 text-xs text-center text-gray-500 dark:text-gray-500">
+              By continuing, you agree to our{' '}
+              <button
+                type="button"
+                onClick={() => alert('Terms of Service would be shown')}
+                className="text-blue-600 hover:text-blue-700"
+              >
+                Terms of Service
+              </button>{' '}
+              and{' '}
+              <button
+                type="button"
+                onClick={() => alert('Privacy Policy would be shown')}
+                className="text-blue-600 hover:text-blue-700"
+              >
+                Privacy Policy
+              </button>
+            </p>
           </div>
         </Card>
       </div>
