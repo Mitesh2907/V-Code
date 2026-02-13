@@ -6,6 +6,8 @@ import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
 import Card from '../../components/common/Card/Card';
 import { SkeletonBox, SkeletonText } from '../../components/common/Skeleton';
+import toast from "react-hot-toast";
+
 
 const AuthPage = () => {
   const navigate = useNavigate();
@@ -76,10 +78,9 @@ const AuthPage = () => {
       navigate('/profile');
     }
   } catch (error) {
-    setErrors({
-      form: error?.response?.data?.message || "Something went wrong"
-    });
-  }
+  toast.error(error.message || "Invalid email or password");
+}
+
 };
 
 

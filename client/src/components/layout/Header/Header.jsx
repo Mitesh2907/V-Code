@@ -10,9 +10,11 @@ const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { isDarkMode, toggleTheme } = useTheme();
-  const { user, logout, isAuthenticated } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const isDarkMode = theme === "dark";
+  const { user, logout, isAuthenticated, loading } = useAuth();
   const [isAvatarOpen, setIsAvatarOpen] = useState(false);
+  
 
   useEffect(() => {
     const handleScroll = () => {
@@ -24,7 +26,7 @@ const Header = () => {
 
   const navItems = [
     { label: 'Home', href: '/', icon: Home },
-    { label: 'Code Editor', href: '/editor', icon: Terminal },
+    // { label: 'Code Editor', href: '/editor', icon: Terminal },
     { label: 'Features', href: '/features', icon: Zap },
     { label: 'Documentation', href: '/documentation', icon: BookOpen },
   ];
@@ -126,7 +128,7 @@ const Header = () => {
             </button>
 
             {/* Auth Buttons */}
-            {!isAuthenticated ? (
+            {!loading && !isAuthenticated ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -141,8 +143,8 @@ const Header = () => {
                 <button
                   onClick={() => setIsAvatarOpen(prev => !prev)}
                   className="hidden sm:inline-flex items-center justify-center w-8 h-8 rounded-full 
-             bg-gradient-to-br from-blue-500 to-purple-600 
-             text-white text-sm font-semibold"
+  bg-gradient-to-br from-blue-500 to-purple-600 
+  text-white text-sm font-semibold"
                 >
                   {user?.fullName?.charAt(0).toUpperCase()}
                 </button>
@@ -150,9 +152,21 @@ const Header = () => {
 
                 {isAvatarOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg py-1 z-50">
-                    <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 border-b border-gray-100 dark:border-gray-700">
-                      {user.fullName}
+
+                    <div className="px-4 py-2 text-sm border-b">
+                      {user?.fullName}
                     </div>
+
+                    <button
+                      onClick={() => {
+                        setIsAvatarOpen(false);
+                        navigate("/profile");
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      View Profile
+                    </button>
+
                     <button
                       onClick={() => {
                         setIsAvatarOpen(false);
@@ -163,8 +177,10 @@ const Header = () => {
                     >
                       Sign Out
                     </button>
+
                   </div>
                 )}
+
               </div>
             )}
 
@@ -271,9 +287,10 @@ const Header = () => {
                     </button>
                     {user && (
                       <div className="px-4 py-2 flex items-center">
-                        <img src={user.avatar} alt={user.name} className="w-8 h-8 rounded-full mr-3" />
+                        <img src={user?.avatar} alt={user?.fullName}
+                          className="w-8 h-8 rounded-full mr-3" />
                         <div>
-                          <div className="text-sm font-medium">{user.name}</div>
+                          <div className="text-sm font-medium">{user?.fullName}</div>
                           <div className="text-xs text-gray-400">{user.email}</div>
                         </div>
                       </div>

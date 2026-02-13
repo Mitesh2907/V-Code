@@ -2,13 +2,19 @@ import {
   createFolderDB,
   getFoldersByRoomDB,
   getFolderByIdDB,
+  renameFolderDB,
+  deleteFolderRecursiveDB
 } from "../models/folderModel.js";
+
 
 import {
   createFileDB,
   getFilesByRoomDB,
   getFileByIdDB,
+  renameFileDB,
+  deleteFileDB
 } from "../models/fileModel.js";
+
 
 import {
   createFileContentDB,
@@ -17,6 +23,75 @@ import {
 } from "../models/fileContentModel.js";
 
 import { isUserRoomMemberDB } from "../models/roomModel.js";
+
+
+const renameRecursive = (items, id, newName) => {
+  return items.map(item => {
+    if (item.id === id) {
+      return { ...item, name: newName };
+    }
+
+    if (item.type === "folder" && item.children) {
+      return {
+        ...item,
+        children: renameRecursive(item.children, id, newName)
+      };
+    }
+
+    return item;
+  });
+};
+
+
+const buildTree = (folders, files) => {
+  const map = {};
+  const root = {
+    id: "project",
+    name: "project",
+    type: "folder",
+    children: [],
+  };
+
+  // folders map
+  folders.forEach(f => {
+    map[f.id] = {
+      id: f.id,
+      name: f.name,
+      type: "folder",
+      children: [],
+    };
+  });
+
+  // attach folders
+  folders.forEach(f => {
+    if (f.parent_id) {
+      map[f.parent_id]?.children.push(map[f.id]);
+    } else {
+      root.children.push(map[f.id]);
+    }
+  });
+
+  // attach files
+  files.forEach(file => {
+    const fileNode = {
+      id: file.id,
+      name: file.name,
+      type: "file",
+      content: file.content || "",
+      language: file.language || "text",
+    };
+
+    if (file.folder_id && map[file.folder_id]) {
+      map[file.folder_id].children.push(fileNode);
+    } else {
+      root.children.push(fileNode);
+    }
+
+  });
+
+  return root;
+};
+
 
 /**
  * CREATE FOLDER
@@ -60,15 +135,26 @@ export const createFolder = async (req, res) => {
       parentId,
     });
 
+    const folders = await getFoldersByRoomDB(roomId);
+    const files = await getFilesByRoomDB(roomId);
+
+    const filesWithContent = await Promise.all(
+      files.map(async (file) => {
+        const contentData = await getFileContentByFileIdDB(file.id);
+        return {
+          ...file,
+          content: contentData?.content || "",
+        };
+      })
+    );
+
+    const tree = buildTree(folders, filesWithContent);
+
     res.status(201).json({
       success: true,
-      message: "Folder created successfully",
-      folder: {
-        id: folderId,
-        name,
-        parentId: parentId || null,
-      },
+      tree,
     });
+
   } catch (error) {
     console.error("Create Folder Error:", error);
     res.status(500).json({
@@ -84,7 +170,7 @@ export const createFolder = async (req, res) => {
  */
 export const createFile = async (req, res) => {
   try {
-    const { roomId, folderId, name, language } = req.body;
+    const { roomId, folderId, name, language = "text" } = req.body;
     const userId = req.userId;
 
     if (!roomId || !name) {
@@ -124,16 +210,26 @@ export const createFile = async (req, res) => {
     // create empty content for file
     await createFileContentDB(fileId);
 
+    const folders = await getFoldersByRoomDB(roomId);
+    const files = await getFilesByRoomDB(roomId);
+
+    const filesWithContent = await Promise.all(
+      files.map(async (file) => {
+        const contentData = await getFileContentByFileIdDB(file.id);
+        return {
+          ...file,
+          content: contentData?.content || "",
+        };
+      })
+    );
+
+    const tree = buildTree(folders, filesWithContent);
+
     res.status(201).json({
       success: true,
-      message: "File created successfully",
-      file: {
-        id: fileId,
-        name,
-        folderId: folderId || null,
-        language,
-      },
+      tree,
     });
+
   } catch (error) {
     console.error("Create File Error:", error);
     res.status(500).json({
@@ -224,13 +320,13 @@ export const getRoomEditorData = async (req, res) => {
       })
     );
 
+    const tree = buildTree(folders, filesWithContent);
+
     res.status(200).json({
       success: true,
-      data: {
-        folders,
-        files: filesWithContent,
-      },
+      tree,
     });
+
   } catch (error) {
     console.error("Load Editor Data Error:", error);
     res.status(500).json({
@@ -239,3 +335,78 @@ export const getRoomEditorData = async (req, res) => {
     });
   }
 };
+
+export const renameItem = async (req, res) => {
+  try {
+    const { itemId, newName, type } = req.body;
+    const userId = req.userId;
+
+    if (!itemId || !newName || !type) {
+      return res.status(400).json({ message: "Invalid data" });
+    }
+
+    if (type === "folder") {
+      const folder = await getFolderByIdDB(itemId);
+      if (!folder) return res.status(404).json({ message: "Folder not found" });
+
+      const isMember = await isUserRoomMemberDB(folder.room_id, userId);
+      if (!isMember) return res.status(403).json({ message: "Forbidden" });
+
+      await renameFolderDB(itemId, newName);
+    }
+
+    if (type === "file") {
+      const file = await getFileByIdDB(itemId);
+      if (!file) return res.status(404).json({ message: "File not found" });
+
+      const isMember = await isUserRoomMemberDB(file.room_id, userId);
+      if (!isMember) return res.status(403).json({ message: "Forbidden" });
+
+      await renameFileDB(itemId, newName);
+    }
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error("Rename Error:", err);
+    res.status(500).json({ message: "Rename failed" });
+  }
+};
+
+export const deleteItem = async (req, res) => {
+  try {
+    const { itemId, type } = req.body;
+    const userId = req.userId;
+
+    if (!itemId || !type) {
+      return res.status(400).json({ message: "Invalid data" });
+    }
+
+    if (type === "file") {
+      const file = await getFileByIdDB(itemId);
+      if (!file) return res.status(404).json({ message: "File not found" });
+
+      const isMember = await isUserRoomMemberDB(file.room_id, userId);
+      if (!isMember) return res.status(403).json({ message: "Forbidden" });
+
+      await deleteFileDB(itemId);
+    }
+
+    if (type === "folder") {
+      const folder = await getFolderByIdDB(itemId);
+      if (!folder) return res.status(404).json({ message: "Folder not found" });
+
+      const isMember = await isUserRoomMemberDB(folder.room_id, userId);
+      if (!isMember) return res.status(403).json({ message: "Forbidden" });
+
+      await deleteFolderRecursiveDB(itemId);
+    }
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error("Delete Error:", err);
+    res.status(500).json({ message: "Delete failed" });
+  }
+};
+

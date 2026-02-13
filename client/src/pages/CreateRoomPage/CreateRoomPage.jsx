@@ -3,8 +3,15 @@ import { Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Button from '../../components/common/Button/Button';
 import Input from '../../components/common/Input/Input';
-import Card, { CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '../../components/common/Card/Card';
+import Card, {
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from '../../components/common/Card/Card';
 import toast from 'react-hot-toast';
+import api from "../../configs/api";
 
 const CreateRoomPage = () => {
   const navigate = useNavigate();
@@ -13,7 +20,7 @@ const CreateRoomPage = () => {
   const [roomPassword, setRoomPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleCreateRoom = () => {
+  const handleCreateRoom = async () => {
     if (!roomNumber.trim()) {
       toast.error('Room Number is required');
       return;
@@ -24,28 +31,21 @@ const CreateRoomPage = () => {
     }
 
     try {
-      const stored = localStorage.getItem('vcode-rooms');
-      const list = stored ? JSON.parse(stored) : [];
-      if (list.find(r => r.id === roomNumber)) {
-        toast.error('Room Number already exists. Choose a different number.');
-        return;
-      }
-
       setLoading(true);
-      const newRoom = {
-        id: roomNumber,
-        name: roomName,
-        password: roomPassword || null,
-        createdAt: new Date().toISOString(),
-      };
-      const next = [newRoom, ...list];
-      localStorage.setItem('vcode-rooms', JSON.stringify(next));
-      setLoading(false);
+
+      const { data } = await api.post("/rooms/create", {
+        roomNumber,
+        roomName,
+        password: roomPassword,
+      });
+
       toast.success('Room created');
-      navigate(`/editor/${encodeURIComponent(roomNumber)}`);
-    } catch (err) {
+
+      navigate(`/editor/${encodeURIComponent(data.room.id)}`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to create room');
+    } finally {
       setLoading(false);
-      toast.error('Unable to create room');
     }
   };
 
@@ -61,8 +61,11 @@ const CreateRoomPage = () => {
       <Card>
         <CardHeader>
           <CardTitle>Room Details</CardTitle>
-          <CardDescription>Only the fields below are required to create a room.</CardDescription>
+          <CardDescription>
+            Only the fields below are required to create a room.
+          </CardDescription>
         </CardHeader>
+
         <CardContent className="space-y-4">
           <Input
             label="Room Number"
@@ -89,6 +92,7 @@ const CreateRoomPage = () => {
             helperText="If set, the room will be private and require this password to join. Leave empty for public rooms."
           />
         </CardContent>
+
         <CardFooter>
           <Button
             variant="primary"
@@ -107,4 +111,3 @@ const CreateRoomPage = () => {
 };
 
 export default CreateRoomPage;
-

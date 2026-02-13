@@ -7,8 +7,7 @@ import {
 } from "../models/userModel.js";
 
 /**
- * @desc Register new user
- * @route POST /api/auth/register
+ * REGISTER
  */
 export const registerUser = async (req, res) => {
   try {
@@ -54,6 +53,7 @@ export const registerUser = async (req, res) => {
         id: result.insertId,
         fullName,
         email,
+        avatar: null, // default
       },
     });
   } catch (error) {
@@ -63,8 +63,7 @@ export const registerUser = async (req, res) => {
 };
 
 /**
- * @desc Login user
- * @route POST /api/auth/login
+ * LOGIN
  */
 export const loginUser = async (req, res) => {
   try {
@@ -101,8 +100,9 @@ export const loginUser = async (req, res) => {
       token,
       user: {
         id: user.id,
-        fullName: user.fullName,
+        fullName: user.full_name, // ✅ FIXED
         email: user.email,
+        avatar: user.avatar, // ✅ ADD THIS
       },
     });
   } catch (error) {
@@ -112,21 +112,27 @@ export const loginUser = async (req, res) => {
 };
 
 /**
- * @desc Get current user
- * @route GET /api/auth/me
+ * GET CURRENT USER
  */
 export const getCurrentUser = async (req, res) => {
   try {
-    const user = await findUserById(req.user.userId); 
+    const user = await findUserById(req.userId);
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    res.status(200).json({ user });
+    res.status(200).json({
+      user: {
+        id: user.id,
+        fullName: user.fullName, 
+        email: user.email,
+        avatar: user.avatar,
+      },
+    });
+
   } catch (error) {
     console.error("GET /me ERROR:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
-

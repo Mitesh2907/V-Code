@@ -1,18 +1,14 @@
 import connectDB from "../config/db.js";
-import pool from "../config/db.js";
-
 
 /**
- * CREATE USER (Register)
- * Fields saved in DB:
- * fullName, email, password
+ * CREATE USER
  */
 export const createUser = async ({ fullName, email, password }) => {
   const db = await connectDB();
 
   const [result] = await db.query(
     `
-    INSERT INTO users (fullName, email, password)
+    INSERT INTO users (full_name, email, password)
     VALUES (?, ?, ?)
     `,
     [fullName, email, password]
@@ -22,7 +18,7 @@ export const createUser = async ({ fullName, email, password }) => {
 };
 
 /**
- * FIND USER BY EMAIL (Login)
+ * FIND USER BY EMAIL
  */
 export const findUserByEmail = async (email) => {
   const db = await connectDB();
@@ -36,14 +32,20 @@ export const findUserByEmail = async (email) => {
 };
 
 /**
- * FIND USER BY ID (JWT Protected Routes)
+ * FIND USER BY ID
  */
 export const findUserById = async (id) => {
-  const pool = await connectDB();   // 👈 VERY IMPORTANT
-  const [rows] = await pool.query(
-    "SELECT id, fullName, email FROM users WHERE id = ?",
+  const db = await connectDB();
+
+  const [rows] = await db.query(
+    `
+    SELECT id, fullName, email, avatar
+    FROM users
+    WHERE id = ?
+    LIMIT 1
+    `,
     [id]
   );
+
   return rows[0];
 };
-

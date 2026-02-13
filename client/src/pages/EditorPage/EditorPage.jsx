@@ -1,24 +1,37 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Code, Folder, File, FileText, Play, Save, Terminal,
+import {
+  Folder, File, FileText,
   Maximize2, Minimize2, Plus, FolderPlus, FilePlus,
-  ChevronRight, ChevronDown, Trash2, Edit, Download,
-  FolderOpen, FileCode, Video, MessageSquare
+  ChevronRight, X, Edit, Download,
+  FolderOpen, FileCode, Video, MessageSquare,
+  Trash2
 } from 'lucide-react';
+
 import VideoCallPanel from '../../components/video/VideoCallPanel';
 import ChatPanel from '../../components/chat/ChatPanel';
 import { useParams, useNavigate } from 'react-router-dom';
 import Button from '../../components/common/Button/Button';
 import { SkeletonEditor } from '../../components/common/Skeleton';
 import toast from 'react-hot-toast';
-
+import api from "../../configs/api";
+import Editor from "@monaco-editor/react";
+import { useTheme } from "../../contexts/ThemeContext";
 
 const EditorPage = () => {
+  const { theme } = useTheme();
+  const editorRef = useRef(null);
+  const [dirtyFiles, setDirtyFiles] = useState({});
   const navigate = useNavigate();
   const { roomId } = useParams();
   const isRoomMode = !!roomId;
   const [loading, setLoading] = useState(true);
   const [roomName, setRoomName] = useState(null);
+  const [autoSave, setAutoSave] = useState(true);
+  const [openFiles, setOpenFiles] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [fileContents, setFileContents] = useState({});
+  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
+  const [showExplorer, setShowExplorer] = useState(true);
   const [code, setCode] = useState(`// Welcome to V-Code Collaborative Editor
 // Create files and folders using the + buttons
 // Your changes sync in real-time with your team
@@ -31,106 +44,370 @@ function WelcomeMessage({ name }) {
 // Try editing this code
 const result = WelcomeMessage("Developer");
 console.log(result);`);
-  
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeFile, setActiveFile] = useState(null);
-  const textareaRef = useRef(null);
-  const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
-  const [showTerminal, setShowTerminal] = useState(false);
   const [showVideoCall, setShowVideoCall] = useState(false);
   const [showChat, setShowChat] = useState(false);
-  const [terminalOutput, setTerminalOutput] = useState('');
-  const [fileSystem, setFileSystem] = useState({
-    id: 'project',
-    name: 'project',
-    type: 'folder',
-    children: [
-      {
-        id: 'readme',
-        name: 'README.md',
-        type: 'file',
-        content: '# Project README\n\nWelcome to our collaborative project!',
-        language: 'markdown'
-      }
-    ]
+  const [fileSystem, setFileSystem] = useState(null);
+  const [creatingItem, setCreatingItem] = useState(null);
+  const [expandedFolders, setExpandedFolders] = useState([]);
+
+  const [contextMenu, setContextMenu] = useState({
+    visible: false,
+    x: 0,
+    y: 0,
+    target: null,
   });
-  const [expandedFolders, setExpandedFolders] = useState(['project']);
-  const [showNewItemMenu, setShowNewItemMenu] = useState(false);
 
-  useEffect(() => {
-    setLoading(false);
-    if (roomId) {
-      // try to read room name from localStorage (created rooms)
-      try {
-        const stored = localStorage.getItem('vcode-rooms');
-        if (stored) {
-          const list = JSON.parse(stored);
-          const found = list.find(r => r.id === roomId);
-          if (found) setRoomName(found.name);
-        }
-      } catch (e) {}
-      toast.success(`Connected to room: ${roomName || roomId}`);
-    }
-    
-    // Set first file as active
-    if (fileSystem.children.length > 0) {
-      const firstFile = fileSystem.children.find(f => f.type === 'file');
-      if (firstFile) {
-        setActiveFile(firstFile);
-        setCode(firstFile.content);
-      }
-    }
-  }, [roomId]);
+  const ContextItem = ({ label, onClick, danger }) => (
+    <div
+      onClick={onClick}
+      className={`px-3 py-1.5 cursor-pointer 
+      hover:bg-[#334155]
+      ${danger ? 'text-red-400' : 'text-gray-200'}`}
+    >
+      {label}
+    </div>
+  );
 
-  const createNewFile = () => {
-    const fileName = prompt('Enter file name (e.g., app.js):');
-    if (!fileName) return;
-    
-    if (!fileName.includes('.')) {
-      toast.error('Please include file extension (e.g., .js, .css, .html)');
+
+  const handleRightClick = (e, item = null) => {
+    e.preventDefault();
+
+    setContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      target: item,
+    });
+  };
+
+  const handleCreate = async (name) => {
+    const siblings =
+      creatingItem.parentId === null
+        ? fileSystem.children
+        : findItemById(fileSystem, creatingItem.parentId)?.children || [];
+
+    if (siblings.some(i => i.name === name)) {
+      toast.error("Already exists");
       return;
     }
-    
-    const language = getLanguageFromExtension(fileName);
-    const newFile = {
-      id: `file_${Date.now()}`,
-      name: fileName,
-      type: 'file',
-      content: `// New ${fileName}\n// Start coding here...`,
-      language
-    };
-    
-    setFileSystem(prev => ({
-      ...prev,
-      children: [...prev.children, newFile]
-    }));
-    
-    setActiveFile(newFile);
-    setCode(newFile.content);
-    toast.success(`Created ${fileName}`);
-    setShowNewItemMenu(false);
+
+    if (!name.trim()) {
+      setCreatingItem(null);
+      return;
+    }
+    if (creatingItem.type === "file") {
+      await api.post("/editor/file", {
+        roomId,
+        name,
+        folderId: creatingItem.parentId,
+      });
+    } else {
+      await api.post("/editor/folder", {
+        roomId,
+        name,
+        parentId: creatingItem.parentId,
+      });
+    }
+
+    setCreatingItem(null);
+
+    const { data } = await api.get(`/editor/room/${roomId}`);
+    setFileSystem(data.tree);
   };
 
-  const createNewFolder = () => {
-    const folderName = prompt('Enter folder name:');
-    if (!folderName) return;
-    
-    const newFolder = {
-      id: `folder_${Date.now()}`,
-      name: folderName,
-      type: 'folder',
-      children: []
-    };
-    
-    setFileSystem(prev => ({
-      ...prev,
-      children: [...prev.children, newFolder]
-    }));
-    
-    setExpandedFolders(prev => [...prev, newFolder.id]);
-    toast.success(`Created folder ${folderName}`);
-    setShowNewItemMenu(false);
+
+  const defineThemes = (monaco) => {
+    monaco.editor.defineTheme("vcode-dark", {
+      base: "vs-dark",
+      inherit: true,
+      rules: [],
+      colors: {
+        "editor.background": "#0f172a", // dark slate
+        "editorLineNumber.foreground": "#64748b",
+        "editorCursor.foreground": "#38bdf8",
+        "editor.lineHighlightBackground": "#020617",
+      },
+    });
+
+    monaco.editor.defineTheme("vcode-light", {
+      base: "vs",
+      inherit: true,
+      rules: [],
+      colors: {
+        "editor.background": "#ffffff",
+        "editorLineNumber.foreground": "#64748b",
+        "editorCursor.foreground": "#2563eb",
+        "editor.lineHighlightBackground": "#f1f5f9",
+      },
+    });
   };
+
+
+
+  const closeTab = (fileId, e) => {
+    e.stopPropagation();
+
+    if (dirtyFiles[fileId]) {
+      const ok = confirm("Unsaved changes. Close anyway?");
+      if (!ok) return;
+    }
+
+    setDirtyFiles(prev => {
+      const copy = { ...prev };
+      delete copy[fileId];
+      return copy;
+    });
+
+    setFileContents(prev => {
+      const copy = { ...prev };
+      delete copy[fileId];
+      return copy;
+    });
+
+    setOpenFiles(prev => {
+      const remaining = prev.filter(f => f.id !== fileId);
+
+      if (activeFile?.id === fileId) {
+        if (remaining.length > 0) {
+          setActiveFile(remaining[0]);
+          const nextFile = remaining[0];
+
+          setCode(
+            fileContents[nextFile.id] !== undefined
+              ? fileContents[nextFile.id]
+              : nextFile.content
+          );
+
+        } else {
+          setActiveFile(null);
+          setCode('');
+        }
+      }
+
+      return remaining;
+    });
+  };
+
+
+  const hasUnsavedChanges = () => {
+    return Object.values(dirtyFiles).some(Boolean);
+  };
+
+
+  const handleEditorMount = (editor) => {
+    editorRef.current = editor;
+
+    editor.onDidChangeCursorPosition((e) => {
+      setCursorPos({
+        line: e.position.lineNumber,
+        col: e.position.column,
+      });
+    });
+  };
+
+  useEffect(() => {
+  if (!roomId) return;
+
+  api.get(`/chat/unread/${roomId}`)
+    .then(({ data }) => {
+      setUnreadCount(data.unreadCount);
+    });
+
+}, [roomId, showChat]);
+
+
+
+  const fetchUnread = async () => {
+    if (!roomId) return;
+
+    try {
+      const { data } = await api.get(`/chat/unread/${roomId}`);
+      setUnreadCount(data.unreadCount);
+    } catch (err) {
+      console.log("Failed to fetch unread count");
+    }
+  };
+
+  useEffect(() => {
+    fetchUnread();
+  }, [roomId]);
+
+
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        setShowExplorer(prev => !prev);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+
+  useEffect(() => {
+    if (!fileSystem) return;
+
+    const firstFile = findFirstFile(fileSystem);
+    if (firstFile) {
+      setActiveFile(firstFile);
+      setCode(firstFile.content);
+      setOpenFiles([firstFile]);
+    }
+  }, [fileSystem]);
+
+
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (!hasUnsavedChanges()) return;
+
+      e.preventDefault();
+      e.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () =>
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [dirtyFiles]);
+
+
+
+  useEffect(() => {
+    if (!fileSystem) return;
+
+    setExpandedFolders(prev =>
+      prev.length === 0 ? [fileSystem.id] : prev
+    );
+  }, [fileSystem]);
+
+
+  useEffect(() => {
+    const close = () =>
+      setContextMenu(prev => ({ ...prev, visible: false }));
+
+    window.addEventListener("click", close);
+    return () => window.removeEventListener("click", close);
+  }, []);
+
+
+  useEffect(() => {
+    if (!roomId) return;
+
+    const loadEditor = async () => {
+      try {
+        const { data } = await api.get(`/editor/room/${roomId}`);
+        setFileSystem(data.tree);
+        setRoomName(data.room?.name || null);
+      } catch (err) {
+        toast.error("Editor load failed");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadEditor();
+  }, [roomId]);
+
+
+  useEffect(() => {
+    if (!fileSystem || activeFile) return;
+
+    const firstFile = findFirstFile(fileSystem);
+    if (firstFile) {
+      setActiveFile(firstFile);
+      setCode(firstFile.content);
+    }
+  }, [fileSystem]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (!activeFile) return;
+
+        if (autoSave) {
+          toast("Auto-save is ON", { icon: "ℹ️" });
+          return;
+        }
+
+        saveToDB(code);
+        toast.success("File saved");
+      }
+    };
+
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeFile, code, autoSave]);
+
+
+  const saveToDB = async (content) => {
+    if (!activeFile) return;
+
+    await api.post("/editor/save", {
+      roomId,
+      fileId: activeFile.id,
+      content
+    });
+
+    setActiveFile(prev => ({
+      ...prev,
+      content,
+    }));
+
+    setDirtyFiles(prev => ({
+      ...prev,
+      [activeFile.id]: false,
+    }));
+  };
+
+
+
+  const saveTimeout = useRef(null);
+
+  const handleChange = (value) => {
+    if (!activeFile) return;
+
+    setCode(value);
+
+    setFileContents(prev => ({
+      ...prev,
+      [activeFile.id]: value,
+    }));
+
+    setDirtyFiles(prev => ({
+      ...prev,
+      [activeFile.id]: value !== activeFile.content,
+    }));
+
+    if (!autoSave) return;
+
+    clearTimeout(saveTimeout.current);
+    saveTimeout.current = setTimeout(() => {
+      saveToDB(value);
+    }, 500);
+  };
+
+  const getAllFileIdsInFolder = (folder) => {
+    let ids = [];
+
+    folder.children?.forEach(item => {
+      if (item.type === "file") {
+        ids.push(item.id);
+      }
+      if (item.type === "folder") {
+        ids = ids.concat(getAllFileIdsInFolder(item));
+      }
+    });
+
+    return ids;
+  };
+
 
   const getLanguageFromExtension = (filename) => {
     const ext = filename.split('.').pop().toLowerCase();
@@ -156,45 +433,71 @@ console.log(result);`);
   };
 
   const toggleFolder = (folderId) => {
-    setExpandedFolders(prev => 
-      prev.includes(folderId) 
+    setExpandedFolders(prev => {
+      const isClosing = prev.includes(folderId);
+
+      if (isClosing) {
+        const folder = findItemById(fileSystem, folderId);
+        if (folder) {
+          const idsToClose = getAllFileIdsInFolder(folder);
+
+          setOpenFiles(prev =>
+            prev.filter(f => !idsToClose.includes(f.id))
+          );
+
+          // active file bhi close ho to reset
+          if (activeFile && idsToClose.includes(activeFile.id)) {
+            setActiveFile(null);
+            setCode('');
+          }
+        }
+      }
+
+      return isClosing
         ? prev.filter(id => id !== folderId)
-        : [...prev, folderId]
-    );
+        : [...prev, folderId];
+    });
   };
 
-  const deleteItem = (itemId, e) => {
-    e.stopPropagation();
-    if (!confirm('Are you sure you want to delete this item?')) return;
-    
-    const deleteRecursive = (items) => {
-      return items.filter(item => {
-        if (item.id === itemId) return false;
-        if (item.type === 'folder' && item.children) {
-          item.children = deleteRecursive(item.children);
-        }
-        return true;
-      });
-    };
-    
-    setFileSystem(prev => ({
-      ...prev,
-      children: deleteRecursive(prev.children)
-    }));
-    
-    if (activeFile && activeFile.id === itemId) {
-      const firstFile = findFirstFile(fileSystem);
-      if (firstFile) {
-        setActiveFile(firstFile);
-        setCode(firstFile.content);
-      } else {
-        setActiveFile(null);
-        setCode('// No files open\n// Create a new file to start coding');
+
+  const deleteRecursive = (items, itemId) => {
+    return items.filter(item => {
+      if (item.id === itemId) return false;
+      if (item.type === 'folder' && item.children) {
+        item.children = deleteRecursive(item.children, itemId);
       }
-    }
-    
-    toast.success('Item deleted');
+      return true;
+    });
   };
+
+
+  const deleteItem = async (item) => {
+    if (!confirm("Are you sure?")) return;
+
+    try {
+      await api.delete("/editor/item", {
+        data: {
+          itemId: item.id,
+          type: item.type, // "file" | "folder"
+        },
+      });
+
+
+      const { data } = await api.get(`/editor/room/${roomId}`);
+      setFileSystem(data.tree);
+
+      if (activeFile?.id === item.id) {
+        setActiveFile(null);
+        setCode("");
+      }
+
+      toast.success("Deleted successfully");
+    } catch (err) {
+      toast.error("Delete failed");
+    }
+  };
+
+
 
   const findFirstFile = (folder) => {
     for (const item of folder.children) {
@@ -207,37 +510,30 @@ console.log(result);`);
     return null;
   };
 
-  const renameItem = (itemId, e) => {
-    e.stopPropagation();
-    const item = findItemById(fileSystem, itemId);
-    if (!item) return;
-    
-    const newName = prompt('Enter new name:', item.name);
+
+  const renameItem = async (item) => {
+    const newName = prompt("New name");
     if (!newName || newName === item.name) return;
-    
-    const renameRecursive = (items) => {
-      return items.map(item => {
-        if (item.id === itemId) {
-          return { ...item, name: newName };
-        }
-        if (item.type === 'folder' && item.children) {
-          return { ...item, children: renameRecursive(item.children) };
-        }
-        return item;
+
+    try {
+      await api.patch("/editor/rename", {
+        itemId: item.id,
+        type: item.type,   // "file" | "folder"
+        newName,
       });
-    };
-    
-    setFileSystem(prev => ({
-      ...prev,
-      children: renameRecursive(prev.children)
-    }));
-    
-    if (activeFile && activeFile.id === itemId) {
-      setActiveFile(prev => ({ ...prev, name: newName }));
+
+      // 🔁 tree reload
+      const { data } = await api.get(`/editor/room/${roomId}`);
+      setFileSystem(data.tree);
+
+      toast.success("Renamed successfully");
+    } catch (err) {
+      console.error(err);
+      toast.error("Rename failed");
     }
-    
-    toast.success('Renamed successfully');
   };
+
+
 
   const findItemById = (folder, id) => {
     for (const item of folder.children) {
@@ -252,48 +548,29 @@ console.log(result);`);
 
   const selectFile = (file) => {
     setActiveFile(file);
-    setCode(file.content);
-  };
 
-  const saveCurrentFile = () => {
-    if (!activeFile) return;
-    
-    setFileSystem(prev => {
-      const updateRecursive = (items) => {
-        return items.map(item => {
-          if (item.id === activeFile.id) {
-            return { ...item, content: code };
-          }
-          if (item.type === 'folder' && item.children) {
-            return { ...item, children: updateRecursive(item.children) };
-          }
-          return item;
-        });
-      };
-      
-      return {
-        ...prev,
-        children: updateRecursive(prev.children)
-      };
+    const savedCode =
+      fileContents[file.id] !== undefined
+        ? fileContents[file.id]
+        : file.content;
+
+    setCode(savedCode);
+
+    setOpenFiles(prev => {
+      const exists = prev.find(f => f.id === file.id);
+      if (exists) return prev;
+      return [...prev, file];
     });
-    
-    toast.success('File saved');
   };
 
-  const runCode = () => {
-    setShowTerminal(true);
-    setTerminalOutput(`$ Running ${activeFile?.name || 'code'}...
-> Executing...
-Hello, Developer! Start coding together.
-✓ Code executed successfully in 0.1s
 
-$ Ready for next command...`);
-    toast.success('Code executed!');
+  const itemExists = (name, items) => {
+    return items.some(item => item.name === name);
   };
 
   const downloadFile = () => {
     if (!activeFile) return;
-    
+
     const blob = new Blob([code], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -314,73 +591,132 @@ $ Ready for next command...`);
     return folder.children.map(item => (
       <div key={item.id}>
         <div
-          className={`flex items-center px-2 py-1.5 hover:bg-gray-700/50 rounded cursor-pointer ${
-            activeFile?.id === item.id ? 'bg-blue-900/30' : ''
-          }`}
-          style={{ paddingLeft: `${depth * 20 + 12}px` }}
-          onClick={() => item.type === 'file' ? selectFile(item) : toggleFolder(item.id)}
+          className={`group flex items-center px-2 py-1.5 rounded
+          hover:bg-gray-700/50
+          ${activeFile?.id === item.id ? 'bg-blue-900/30' : ''}`}
+          style={{ paddingLeft: `${depth === 0 ? 0 : depth * 20 + 12}px` }}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleRightClick(e, item);
+          }}
+
         >
-          {item.type === 'folder' ? (
-            <ChevronRight 
-              className={`h-3.5 w-3.5 mr-1.5 transition-transform ${
-                expandedFolders.includes(item.id) ? 'rotate-90' : ''
-              }`}
-            />
-          ) : (
-            <div className="w-5 mr-1.5 flex justify-center">
-              <File className="h-3.5 w-3.5" />
-            </div>
+          {/* FOLDER */}
+          {/* ACTIONS */}
+          {item.type === "folder" && (
+            <>
+              <ChevronRight
+                className={`h-4 w-4 mr-1.5 transition-transform ${expandedFolders.includes(item.id) ? "rotate-90" : ""
+                  }`}
+                onClick={() => toggleFolder(item.id)}
+              />
+
+              <Folder className="h-4 w-4 mr-1.5 text-blue-400" />
+
+              <span
+                className="flex-1 text-sm truncate cursor-pointer"
+                onClick={() => toggleFolder(item.id)}
+              >
+                {item.name}
+              </span>
+
+              <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    renameItem(item);
+                  }}
+                >
+                  <Edit className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteItem(item);
+                  }}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            </>
           )}
-          
-          <span className="flex-1 text-sm truncate">
-            {item.name}
-          </span>
-          
-          <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100">
-            <button
-              onClick={(e) => renameItem(item.id, e)}
-              className="p-0.5 hover:bg-gray-600 rounded"
-              title="Rename"
-            >
-              <Edit className="h-3 w-3" />
-            </button>
-            <button
-              onClick={(e) => deleteItem(item.id, e)}
-              className="p-0.5 hover:bg-red-900/30 rounded"
-              title="Delete"
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          </div>
+
+
+
+
+          {/* FILE */}
+          {item.type === "file" && (
+            <>
+              <div className="w-5 mr-1.5" />
+              <File className="h-4 w-4 mr-1.5 text-gray-300" />
+              <span
+                className="flex-1 text-sm truncate cursor-pointer"
+                onClick={() => selectFile(item)}
+              >
+                {item.name}
+              </span>
+            </>
+          )}
+
         </div>
-        
-        {item.type === 'folder' && expandedFolders.includes(item.id) && item.children && (
-          renderFileTree(item, depth + 1)
+
+        {/* CHILDREN */}
+        {item.type === "folder" &&
+          expandedFolders.includes(item.id) &&
+          item.children &&
+          renderFileTree(item, depth + 1)}
+
+        {/* INLINE CREATE INPUT */}
+        {creatingItem && creatingItem.parentId === item.id && (
+          <div
+            className="ml-6 my-1"
+            style={{ paddingLeft: `${(depth + 1) * 20}px` }}
+          >
+            <input
+              autoFocus
+              className="w-full bg-gray-800 text-sm px-2 py-1 rounded outline-none border border-blue-500"
+              placeholder={
+                creatingItem.type === "file" ? "New File" : "New Folder"
+              }
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleCreate(e.target.value);
+                if (e.key === "Escape") setCreatingItem(null);
+              }}
+              onBlur={() => setCreatingItem(null)}
+            />
+          </div>
         )}
       </div>
     ));
   };
 
-  if (loading) {
+
+  if (loading || !fileSystem) {
     return <SkeletonEditor />;
   }
 
-  // Update cursor position helper
-  const updateCursorPosition = (el) => {
-    try {
-      const pos = el.selectionStart;
-      const before = el.value.substring(0, pos);
-      const lines = before.split('\n');
-      const line = lines.length;
-      const col = lines[lines.length - 1].length + 1;
-      setCursorPos({ line, col });
-    } catch (e) {}
-  };
-
   return (
-    <div className={`flex flex-col h-screen bg-gray-900 text-gray-100 ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
+    <div
+      className={`flex flex-col h-screen transition-colors duration-300
+    ${theme === "dark"
+          ? "bg-gray-900 text-gray-100"
+          : "bg-gray-100 text-gray-900"
+        }
+    ${isFullscreen ? 'fixed inset-0 z-50' : ''}
+  `}
+    >
+
       {/* Top Bar (compact, VS Code like) */}
-      <div className="bg-gray-850 border-b border-gray-800 px-3 py-2">
+      <div
+        className={`border-b px-3 py-2
+    ${theme === "dark"
+            ? "bg-gray-900 border-gray-800 text-gray-100"
+            : "bg-white border-gray-200 text-gray-900"
+          }
+  `}
+      >
+
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <FileCode className="h-4 w-4 text-gray-300" />
@@ -395,10 +731,39 @@ $ Ready for next command...`);
           <div className="flex items-center space-x-2">
             {isRoomMode && (
               <>
-                <Button variant="ghost" size="sm" onClick={() => setShowVideoCall(true)} icon={Video} title="Video Call" />
-                <Button variant="ghost" size="sm" onClick={() => setShowChat(true)} icon={MessageSquare} title="Chat" />
+                {/* Auto-save Toggle */}
+                <button
+                  onClick={() => setAutoSave(!autoSave)}
+                  className="flex items-center space-x-1 text-xs px-2 py-1 rounded bg-gray-800 hover:bg-gray-700"
+                >
+                  <span className={`h-2 w-2 rounded-full ${autoSave ? 'bg-green-500' : 'bg-gray-500'}`} />
+                  <span className="text-gray-300">
+                    Auto-save {autoSave ? 'On' : 'Off'}
+                  </span>
+                </button>
+
+                {/* Video + Chat */}
+                <Button variant="ghost" size="sm" onClick={() => setShowVideoCall(true)} icon={Video} />
+                <div className="relative">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowChat(true);
+                    }}
+
+
+                    icon={MessageSquare}
+                  />
+
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full"></span>
+                  )}
+                </div>
+
               </>
             )}
+
             <Button
               variant="ghost"
               size="sm"
@@ -417,166 +782,216 @@ $ Ready for next command...`);
         </div>
       </div>
 
-    {/* Solo Mode banner (subtle) */}
-    {!isRoomMode && (
-      <div className="bg-gray-800 border-b border-gray-700 px-3 py-1 flex items-center justify-between text-sm text-gray-400">
-        <div className="text-sm text-gray-400">Solo Mode — <span className="text-gray-300">Create a room to collaborate</span></div>
-        <div>
-          <Button variant="primary" size="sm" onClick={() => navigate('/create')} className="text-xs px-3 py-1">
-            Create Room
-          </Button>
+      {/* Solo Mode banner (subtle) */}
+      {!isRoomMode && (
+        <div className="bg-gray-800 border-b border-gray-700 px-3 py-1 flex items-center justify-between text-sm text-gray-400">
+          <div className="text-sm text-gray-400">Solo Mode — <span className="text-gray-300">Create a room to collaborate</span></div>
+          <div>
+            <Button variant="primary" size="sm" onClick={() => navigate('/create')} className="text-xs px-3 py-1">
+              Create Room
+            </Button>
+          </div>
         </div>
-      </div>
-    )}
+      )}
 
-    {/* Video Call Panel */}
-    {showVideoCall && (
-      <VideoCallPanel onClose={() => setShowVideoCall(false)} />
-    )}
-    {/* Chat Panel */}
-    {showChat && <ChatPanel onClose={() => setShowChat(false)} />}
+      {/* Video Call Panel */}
+      {showVideoCall && (
+        <VideoCallPanel onClose={() => setShowVideoCall(false)} />
+      )}
+      {/* Chat Panel */}
+      {showChat && (
+        <ChatPanel
+          onClose={() => {
+            setShowChat(false);
+            fetchUnread(); 
+          }}
+        />
+      )}
+
       {/* Main Editor Area */}
       <div className="flex-1 flex overflow-hidden">
-        {/* File Explorer Sidebar (narrow, VS Code-like) */}
-        <div className="w-48 bg-gray-900 border-r border-gray-800 flex flex-col text-sm">
-          <div className="p-3 border-b border-gray-700">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold flex items-center">
-                <FolderOpen className="h-4 w-4 mr-2" />
+
+        {/* File Explorer Sidebar */}
+        {showExplorer &&
+          <div
+            className={`w-48 border-r flex flex-col text-sm
+    ${theme === "dark"
+                ? "bg-gray-900 border-gray-800 text-gray-100"
+                : "bg-white border-gray-200 text-gray-900"
+              }
+  `}
+          >
+
+            {/* Explorer Header */}
+            <div className="p-3 border-b border-gray-700 flex items-center justify-between">
+              <h3 className="text-sm font-semibold flex items-center gap-2">
+                <FolderOpen className="h-4 w-4" />
                 EXPLORER
               </h3>
-              
-              <div className="relative">
+
+              <div className="flex items-center gap-1">
+                {/* New File */}
                 <button
-                  onClick={() => setShowNewItemMenu(!showNewItemMenu)}
-                  className="p-1 hover:bg-gray-700 rounded"
-                  title="New File or Folder"
+                  title="New File"
+                  onClick={() => setCreatingItem({ type: "file", parentId: null })}
+                  className="p-1 rounded hover:bg-gray-700"
                 >
-                  <Plus className="h-4 w-4" />
+                  <FilePlus className="h-4 w-4" />
                 </button>
-                
-                {showNewItemMenu && (
-                  <div className="absolute right-0 top-full mt-1 w-48 bg-gray-700 border border-gray-600 rounded shadow-lg z-10">
-                    <button
-                      onClick={createNewFile}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-600 flex items-center"
-                    >
-                      <FilePlus className="h-4 w-4 mr-2" />
-                      New File
-                    </button>
-                    <button
-                      onClick={createNewFolder}
-                      className="w-full text-left px-4 py-2 hover:bg-gray-600 flex items-center"
-                    >
-                      <FolderPlus className="h-4 w-4 mr-2" />
-                      New Folder
-                    </button>
+
+                {/* New Folder */}
+                <button
+                  title="New Folder"
+                  onClick={() => setCreatingItem({ type: "folder", parentId: null })}
+                  className="p-1 rounded hover:bg-gray-700"
+                >
+                  <FolderPlus className="h-4 w-4" />
+                </button>
+
+                {/* Refresh */}
+                <button
+                  title="Refresh"
+                  onClick={async () => {
+                    const { data } = await api.get(`/editor/room/${roomId}`);
+                    setFileSystem(data.tree);
+                  }}
+                  className="p-1 rounded hover:bg-gray-700"
+                >
+                  <ChevronRight className="h-4 w-4 rotate-90" />
+                </button>
+
+                {/* 🔥 TOGGLE EXPLORER (ADD THIS) */}
+                <button
+                  title={showExplorer ? "Hide Explorer (Ctrl+B)" : "Show Explorer (Ctrl+B)"}
+                  onClick={() => setShowExplorer(prev => !prev)}
+                  className="p-1 rounded hover:bg-gray-700"
+                >
+                  <ChevronRight
+                    className={`h-4 w-4 transition-transform ${showExplorer ? "rotate-180" : ""
+                      }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+
+            {/* Explorer Tree */}
+            <div className="flex-1 overflow-y-auto p-2">
+              <div className="mb-4">
+                <div
+                  className="flex items-center px-2 py-1 hover:bg-gray-700/40 rounded cursor-pointer font-medium"
+                  onClick={() => toggleFolder(fileSystem.id)}
+                >
+                  <ChevronRight
+                    className={`h-4 w-4 mr-1.5 transition-transform ${expandedFolders.includes(fileSystem.id) ? 'rotate-90' : ''
+                      }`}
+                  />
+                  <Folder className="h-4 w-4 mr-1.5 text-blue-400" />
+                  {fileSystem.name}
+                </div>
+
+                {expandedFolders.includes(fileSystem.id) && (
+                  <div className="mt-1">
+                    {renderFileTree(fileSystem)}
                   </div>
                 )}
+                {/* ROOT LEVEL CREATE INPUT */}
+                {creatingItem && creatingItem.parentId === null && (
+                  <div className="mt-1 ml-6">
+                    <input
+                      autoFocus
+                      className="w-full bg-gray-800 text-sm px-2 py-1 rounded outline-none border border-blue-500"
+                      placeholder={
+                        creatingItem.type === "file" ? "New File" : "New Folder"
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleCreate(e.target.value);
+                        if (e.key === "Escape") setCreatingItem(null);
+                      }}
+                      onBlur={() => setCreatingItem(null)}
+                    />
+                  </div>
+                )}
+
               </div>
             </div>
+
           </div>
-          
-          <div className="flex-1 overflow-y-auto p-2">
-            <div className="mb-4">
-              <div
-                className="flex items-center px-2 py-1 hover:bg-gray-700/40 rounded cursor-pointer font-medium"
-                onClick={() => toggleFolder(fileSystem.id)}
-              >
-                <ChevronRight 
-                  className={`h-4 w-4 mr-1.5 transition-transform ${
-                    expandedFolders.includes(fileSystem.id) ? 'rotate-90' : ''
-                  }`}
-                />
-                <Folder className="h-4 w-4 mr-1.5 text-blue-400" />
-                {fileSystem.name}
-              </div>
-              
-              {expandedFolders.includes(fileSystem.id) && (
-                <div className="mt-1">
-                  {renderFileTree(fileSystem)}
-                </div>
-              )}
-            </div>
-          </div>
-          
-          <div className="p-3 border-t border-gray-700">
-            <div className="text-xs text-gray-500 mb-1">Files Count</div>
-            <div className="text-sm font-medium">
-              {countFiles(fileSystem)} files
-            </div>
-          </div>
-        </div>
+        }
+
+
 
         {/* Code Editor */}
         <div className="flex-1 flex flex-col">
           {/* Editor Tabs (compact) */}
-          <div className="bg-gray-900 border-b border-gray-800">
+          <div
+            className={`border-b
+    ${theme === "dark"
+                ? "bg-gray-900 border-gray-800"
+                : "bg-gray-100 border-gray-200"
+              }
+  `}
+          >
+
             <div className="flex items-center px-2 overflow-x-auto space-x-1">
-              {fileSystem.children
-  .filter(item => item.type === 'file')
-  .map(file => (
-    <div key={file.id} className="relative group"> {/* wrapper div डालें */}
-      <button
-        onClick={() => selectFile(file)}
-        className={`w-full px-3 py-2 text-xs font-medium whitespace-nowrap flex items-center ${
-          activeFile?.id === file.id
-            ? 'bg-gray-800 text-gray-100 border-b-2 border-blue-500'
-            : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-        }`}
-      >
-        <FileText className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
-        <span className="truncate flex-1 text-left">{file.name}</span>
-      </button>
-      
-      {/* Delete button को अलग position में रखें */}
-      {activeFile?.id === file.id && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            deleteItem(file.id, e);
-          }}
-          className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded text-gray-300 hover:text-red-400 hover:bg-gray-700/50 z-10"
-          title="Delete file"
-        >
-          <Trash2 className="h-3 w-3" />
-        </button>
-      )}
-    </div>
-  ))}
+              {openFiles.map(file => (
+                <div
+                  key={file.id}
+                  className={`group relative flex items-center px-3 py-2 text-xs font-medium
+      ${activeFile?.id === file.id
+                      ? 'bg-gray-800 text-gray-100 border-b-2 border-blue-500'
+                      : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                    }`}
+                  onClick={() => selectFile(file)}
+                >
+                  <FileText className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
+
+                  <span className="truncate max-w-[120px]">
+                    {file.name}
+                    {dirtyFiles[file.id] && <span className="ml-1 text-blue-400">●</span>}
+                  </span>
+
+                  {/* CLOSE ICON — VS CODE STYLE */}
+                  <button
+                    onClick={(e) => closeTab(file.id, e)}
+                    className="ml-2 opacity-0 group-hover:opacity-100
+        text-gray-400 hover:text-white"
+                    title="Close"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+
             </div>
           </div>
 
           {/* Code Editor Area */}
           <div className="flex-1 flex overflow-hidden">
             {/* Line Numbers */}
-            <div className="w-10 bg-gray-900 text-right py-3 overflow-y-auto hide-scrollbar select-none">
-              {code.split('\n').map((_, i) => (
-                <div key={i} className={`text-gray-500 text-xs pr-2 leading-6 ${i + 1 === cursorPos.line ? 'bg-gray-800 text-gray-300' : ''}`}>
-                  {i + 1}
-                </div>
-              ))}
-            </div>
+
 
             {/* Code Textarea */}
             <div className="flex-1 relative">
-              <textarea
-                ref={textareaRef}
+              <Editor
+                key={theme}
+                beforeMount={defineThemes}
+                theme={theme === "dark" ? "vcode-dark" : "vcode-light"}
+                height="100%"
+                language={activeFile ? getLanguageFromExtension(activeFile.name) : "javascript"}
                 value={code}
-                onChange={(e) => { setCode(e.target.value); updateCursorPosition(e.target); }}
-                onClick={(e) => updateCursorPosition(e.target)}
-                onKeyUp={(e) => updateCursorPosition(e.target)}
-                className="w-full h-full bg-gray-900 resize-none outline-none text-gray-100 font-mono p-3 text-sm leading-5"
-                spellCheck="false"
-                rows={code.split('\n').length}
-                style={{
-                  tabSize: 2,
-                  MozTabSize: 2,
-                  OTabSize: 2,
-                  fontVariantLigatures: 'no-common-ligatures',
+                onChange={(value) => handleChange(value || "")}
+                onMount={handleEditorMount}
+                options={{
+                  fontSize: 14,
+                  minimap: { enabled: false },
+                  wordWrap: "on",
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
                 }}
               />
-              
+
+
               {/* Language Badge */}
               {activeFile && (
                 <div className="absolute bottom-4 right-4 px-2 py-1 bg-gray-800/80 rounded text-xs text-gray-400">
@@ -587,121 +1002,100 @@ $ Ready for next command...`);
           </div>
 
           {/* Editor Status Bar */}
-          <div className="bg-gray-800 border-t border-gray-700 px-4 py-2">
+          <div
+            className={`border-t px-4 py-2
+    ${theme === "dark"
+                ? "bg-gray-800 border-gray-700 text-gray-400"
+                : "bg-gray-100 border-gray-200 text-gray-600"
+              }
+  `}
+          >
+
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center space-x-4">
-                <div className="flex items-center">
-                  <div className="h-2 w-2 rounded-full bg-green-500 mr-2"></div>
-                  <span className="text-gray-400">Auto-save: </span>
-                  <span className="ml-1 text-green-400">On</span>
+                <div className="flex items-center space-x-2 text-gray-400">
+                  <div className={`h-2 w-2 rounded-full ${autoSave ? 'bg-green-500' : 'bg-gray-500'}`} />
+                  <span>Auto-save {autoSave ? 'On' : 'Off'}</span>
                 </div>
-                
+
+
+
                 <div className="hidden md:flex items-center text-gray-400">
+                  <span>Ln {cursorPos.line}, Col {cursorPos.col}</span>
+                  <span className="mx-2">•</span>
                   <span>Lines: {code.split('\n').length}</span>
                   <span className="mx-2">•</span>
                   <span>Chars: {code.length}</span>
-                  <span className="mx-2">•</span>
-                  <span>File: {activeFile?.name || 'None'}</span>
                 </div>
+
               </div>
-              
+
               <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  icon={Terminal}
-                  onClick={() => setShowTerminal(!showTerminal)}
-                >
-                  {showTerminal ? 'Hide' : 'Show'} Terminal
-                </Button>
-                
-                <Button
-                  variant="outline"
-                  size="sm"
-                  icon={Save}
-                  onClick={saveCurrentFile}
-                  disabled={!activeFile}
-                >
-                  Save
-                </Button>
-                
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon={Play}
-                  onClick={runCode}
-                  disabled={!activeFile}
-                >
-                  Run Code
-                </Button>
+
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Terminal Panel */}
-      {showTerminal && (
-        <div className="h-64 bg-gray-800 border-t border-gray-700 flex flex-col">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
-            <div className="flex items-center">
-              <Terminal className="h-4 w-4 text-green-400 mr-2" />
-              <span className="font-medium">Terminal</span>
-              <span className="ml-2 text-xs text-gray-500">(Output)</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setTerminalOutput('')}
-                className="text-xs text-gray-400 hover:text-gray-300"
-              >
-                Clear
-              </button>
-              <button
-                onClick={() => setShowTerminal(false)}
-                className="text-gray-400 hover:text-gray-300"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-          
-          <div className="flex-1 overflow-auto p-4 font-mono text-sm">
-            <pre className="whitespace-pre-wrap text-gray-300">{terminalOutput}</pre>
-            {!terminalOutput && (
-              <div className="text-gray-500 italic">
-                // Terminal output will appear here when you run your code
-              </div>
-            )}
-
-      {/* Status Bar (compact) */}
-      <div className="h-6 bg-gray-900 border-t border-gray-800 text-xs text-gray-400 flex items-center justify-between px-3">
-        <div className="flex items-center space-x-3">
-          <div>{activeFile ? getLanguageFromExtension(activeFile.name).toUpperCase() : 'PLAIN'}</div>
-          <div>Ln {cursorPos.line}, Col {cursorPos.col}</div>
-        </div>
-        <div className="text-xs">{isRoomMode ? 'Room' : 'Solo'}</div>
-      </div>
-          </div>
-          
-          <div className="px-4 py-3 border-t border-gray-700">
-            <div className="flex items-center">
-              <span className="text-green-400 mr-2">$</span>
-              <input
-                type="text"
-                placeholder="Type a command..."
-                className="flex-1 bg-transparent outline-none text-gray-300"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    const cmd = e.target.value;
-                    setTerminalOutput(prev => prev + `\n$ ${cmd}\n> Command executed\n`);
-                    e.target.value = '';
-                  }
+      {contextMenu.visible && contextMenu.target && (
+        <div
+          className="fixed z-50 bg-[#1e293b] border border-[#334155]
+    rounded shadow-lg text-sm w-44"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+        >
+          {/* ONLY FOLDER OPTIONS */}
+          {contextMenu.target.type === "folder" && (
+            <>
+              <ContextItem
+                label="New File"
+                onClick={() => {
+                  setCreatingItem({
+                    type: "file",
+                    parentId: contextMenu.target.id,
+                  });
+                  setContextMenu(p => ({ ...p, visible: false }));
                 }}
               />
-            </div>
-          </div>
+              <ContextItem
+                label="New Folder"
+                onClick={() => {
+                  setCreatingItem({
+                    type: "folder",
+                    parentId: contextMenu.target.id,
+                  });
+                  setContextMenu(p => ({ ...p, visible: false }));
+                }}
+              />
+              <div className="border-t border-[#334155] my-1" />
+            </>
+          )}
+
+          {/* COMMON (FILE + FOLDER) */}
+          <ContextItem
+            label="Rename"
+            onClick={() => {
+              renameItem(contextMenu.target);
+              setContextMenu({ visible: false });
+            }}
+          />
+
+          <ContextItem
+            label="Delete"
+            danger
+            onClick={() => {
+              deleteItem(contextMenu.target);
+              setContextMenu({ visible: false });
+            }}
+          />
+
         </div>
       )}
+
+
+
+
+
     </div>
   );
 };
