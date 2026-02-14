@@ -1,137 +1,186 @@
-import React, { useEffect, useRef, useState } from 'react';
-import ParticipantVideo from './ParticipantVideo';
-import VideoControls from './VideoControls';
-import LocalVideo from './LocalVideo';
-import toast from 'react-hot-toast';
+import React, { useEffect, useRef, useState } from "react";
+import VideoControls from "./VideoControls";
+import LocalVideo from "./LocalVideo";
+import toast from "react-hot-toast";
+import videoSocket from "../../configs/videoSocket";
+import { useParams } from "react-router-dom";
 
-// Frontend-only demo: This component provides a UI-level video call experience.
-// Real multi-user calls require backend signaling and peer connections (not included).
-
-const mockParticipants = [
-  { id: '2', name: 'Alice', avatar: 'https://ui-avatars.com/api/?name=Alice' },
-  { id: '3', name: 'Bob', avatar: 'https://ui-avatars.com/api/?name=Bob' },
-  { id: '4', name: 'Eve', avatar: 'https://ui-avatars.com/api/?name=Eve' },
-];
+const servers = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" }
+  ]
+};
 
 const VideoCallPanel = ({ onClose }) => {
-  const [callState, setCallState] = useState('idle'); // idle | joining | in-call
+  const { roomId } = useParams();
+
+  const [callState, setCallState] = useState("idle");
   const [localStream, setLocalStream] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
+
+  const peerRef = useRef(null);
   const streamRef = useRef(null);
 
-  useEffect(() => {
-    // cleanup on unmount
-    return () => {
-      stopLocalTracks();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  /* ---------------- CREATE PEER ---------------- */
+  const createPeer = (targetSocketId) => {
+    const peer = new RTCPeerConnection(servers);
 
-  const stopLocalTracks = () => {
-    try {
-      const s = streamRef.current;
-      if (s) {
-        s.getTracks().forEach(t => {
-          try { t.stop(); } catch (e) {}
+    peer.onicecandidate = (event) => {
+      if (event.candidate) {
+        videoSocket.emit("video-ice-candidate", {
+          candidate: event.candidate,
+          target: targetSocketId,
         });
       }
-    } catch (err) {}
-    setLocalStream(null);
-    streamRef.current = null;
+    };
+
+    peer.ontrack = (event) => {
+      setRemoteStream(event.streams[0]);
+    };
+
+    streamRef.current.getTracks().forEach((track) => {
+      peer.addTrack(track, streamRef.current);
+    });
+
+    peerRef.current = peer;
+    return peer;
   };
 
+  /* ---------------- SOCKET EVENTS ---------------- */
+  useEffect(() => {
+    if (!roomId) return;
+
+    videoSocket.on("video-user-joined", async ({ socketId }) => {
+      const peer = createPeer(socketId);
+
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
+
+      videoSocket.emit("video-offer", {
+        offer,
+        target: socketId,
+      });
+    });
+
+    videoSocket.on("video-offer", async ({ offer, sender }) => {
+      const peer = createPeer(sender);
+
+      await peer.setRemoteDescription(new RTCSessionDescription(offer));
+
+      const answer = await peer.createAnswer();
+      await peer.setLocalDescription(answer);
+
+      videoSocket.emit("video-answer", {
+        answer,
+        target: sender,
+      });
+    });
+
+    videoSocket.on("video-answer", async ({ answer }) => {
+      await peerRef.current.setRemoteDescription(
+        new RTCSessionDescription(answer)
+      );
+    });
+
+    videoSocket.on("video-ice-candidate", async ({ candidate }) => {
+      try {
+        await peerRef.current.addIceCandidate(
+          new RTCIceCandidate(candidate)
+        );
+      } catch (err) {
+        console.error("ICE error", err);
+      }
+    });
+
+    return () => {
+      videoSocket.off("video-user-joined");
+      videoSocket.off("video-offer");
+      videoSocket.off("video-answer");
+      videoSocket.off("video-ice-candidate");
+    };
+  }, [roomId]);
+
+  /* ---------------- JOIN CALL ---------------- */
   const joinCall = async () => {
-    setCallState('joining');
+    setCallState("joining");
+
     try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      streamRef.current = s;
-      setLocalStream(s);
-      setMicOn(!!s.getAudioTracks().find(t => t.enabled !== undefined ? t.enabled : true));
-      setCamOn(!!s.getVideoTracks().find(t => t.enabled !== undefined ? t.enabled : true));
-      setCallState('in-call');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+
+      streamRef.current = stream;
+      setLocalStream(stream);
+
+      videoSocket.emit("video-join-room", { roomId });
+
+      setCallState("in-call");
     } catch (err) {
-      console.error('getUserMedia failed', err);
-      toast.error('Unable to access camera/microphone');
-      setCallState('idle');
+      toast.error("Camera/Mic access denied");
+      setCallState("idle");
     }
   };
 
+  /* ---------------- LEAVE CALL ---------------- */
   const leaveCall = () => {
-    stopLocalTracks();
-    setCallState('idle');
-    if (onClose) onClose();
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    peerRef.current?.close();
+    setLocalStream(null);
+    setRemoteStream(null);
+    setCallState("idle");
+    onClose?.();
   };
 
+  /* ---------------- TOGGLE ---------------- */
   const toggleMic = () => {
-    const s = streamRef.current;
-    if (!s) return setMicOn(prev => !prev);
-    s.getAudioTracks().forEach(t => (t.enabled = !t.enabled));
-    setMicOn(prev => !prev);
+    streamRef.current?.getAudioTracks().forEach((t) => {
+      t.enabled = !t.enabled;
+    });
+    setMicOn((prev) => !prev);
   };
 
   const toggleCam = () => {
-    const s = streamRef.current;
-    if (!s) return setCamOn(prev => !prev);
-    s.getVideoTracks().forEach(t => (t.enabled = !t.enabled));
-    setCamOn(prev => !prev);
+    streamRef.current?.getVideoTracks().forEach((t) => {
+      t.enabled = !t.enabled;
+    });
+    setCamOn((prev) => !prev);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center pointer-events-auto">
+    <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/60" onClick={leaveCall} />
+
       <div className="relative max-w-6xl w-full mx-4 my-8 bg-gray-900 rounded-lg shadow-xl overflow-hidden flex flex-col">
-        <div className="p-3 border-b border-gray-700 flex items-center justify-between">
-          <div className="text-sm font-medium text-gray-100">Video Call</div>
-          <div className="text-xs text-gray-400">Frontend-only demo — signaling required for real calls</div>
+
+        <div className="p-3 border-b border-gray-700 text-gray-200">
+          Real WebRTC Call
         </div>
 
         <div className="p-4 bg-gray-800">
-          {callState === 'idle' && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <div className="text-sm text-gray-300 mb-4">You are about to join a frontend-only demo call.</div>
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={joinCall}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded"
-                >
-                  Join Call
-                </button>
-                <button
-                  onClick={leaveCall}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
+
+          {callState === "idle" && (
+            <button
+              onClick={joinCall}
+              className="px-4 py-2 bg-blue-600 text-white rounded"
+            >
+              Join Call
+            </button>
           )}
 
-          {callState === 'joining' && (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-sm text-gray-300">Requesting camera & microphone...</div>
-            </div>
-          )}
-
-          {callState === 'in-call' && (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="col-span-1 row-span-1 bg-gray-900 rounded overflow-hidden">
-                <div className="text-xs text-gray-400 px-2 py-1 border-b border-gray-700">You (local)</div>
-                <div className="h-48 bg-black">
-                  <LocalVideo stream={localStream} muted />
-                </div>
-              </div>
-
-              <div className="col-span-2 grid grid-cols-2 gap-3">
-                {mockParticipants.map(p => (
-                  <ParticipantVideo key={p.id} name={p.name} avatar={p.avatar} muted={false} />
-                ))}
-              </div>
+          {callState === "in-call" && (
+            <div className="grid grid-cols-2 gap-3">
+              <LocalVideo stream={localStream} muted />
+              {remoteStream && (
+                <LocalVideo stream={remoteStream} muted={false} />
+              )}
             </div>
           )}
         </div>
 
-        {callState === 'in-call' && (
+        {callState === "in-call" && (
           <VideoControls
             micOn={micOn}
             camOn={camOn}
@@ -146,4 +195,3 @@ const VideoCallPanel = ({ onClose }) => {
 };
 
 export default VideoCallPanel;
-

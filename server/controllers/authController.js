@@ -1,3 +1,4 @@
+import connectDB from "../config/db.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import {
@@ -100,9 +101,9 @@ export const loginUser = async (req, res) => {
       token,
       user: {
         id: user.id,
-        fullName: user.full_name, // ✅ FIXED
+        fullName: user.fullName,   
         email: user.email,
-        avatar: user.avatar, // ✅ ADD THIS
+        avatar: user.avatar, 
       },
     });
   } catch (error) {
@@ -136,3 +137,97 @@ export const getCurrentUser = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
+export const changePassword = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { currentPassword, newPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
+    }
+
+    const pool = await connectDB();
+
+    const [users] = await pool.query(
+      "SELECT id, password FROM users WHERE id = ?",
+      [userId]
+    );
+
+    const user = users[0];
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: "Current password incorrect",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await pool.query(
+      "UPDATE users SET password = ? WHERE id = ?",
+      [hashedPassword, userId]
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Password updated successfully",
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+export const updateProfile = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { name } = req.body;
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: "Name is required",
+      });
+    }
+
+    const pool = await connectDB();
+
+    await pool.query(
+      "UPDATE users SET fullName = ? WHERE id = ?",
+      [name, userId]
+    );
+
+    return res.json({
+      success: true,
+      message: "Profile updated successfully",
+    });
+
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+

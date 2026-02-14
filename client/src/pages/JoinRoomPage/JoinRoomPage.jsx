@@ -63,20 +63,26 @@ const JoinRoomPage = () => {
         <CardContent className="space-y-4">
           <Input
             label="Room Number"
+            name="room_code"
+            autoComplete="off"
             placeholder="e.g., VC-1023"
             value={roomNumber}
             onChange={(e) => setRoomNumber(e.target.value)}
             required
           />
 
+
           <Input
             type="password"
-            label="Password (optional)"
+            name="room_pass"
+            autoComplete="new-password"
+            label="Password"
             placeholder="Enter password if the room is private"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             helperText="Enter password if the room is private"
           />
+
         </CardContent>
 
         <CardFooter>

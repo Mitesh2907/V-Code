@@ -86,7 +86,7 @@ const AuthPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4">
+      <div className="min-h-screen pt-24 flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4">
         <Card className="w-full max-w-md">
           <div className="p-8">
             <div className="text-center mb-8">
@@ -115,7 +115,7 @@ const AuthPage = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 dark:from-gray-900 dark:via-blue-900/20 dark:to-purple-900/20 p-4 relative overflow-hidden">
+    <div className="min-h-screen pt-24 flex items-center justify-center bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 dark:from-gray-900 dark:via-blue-900/20 dark:to-purple-900/20 p-4 relative overflow-hidden">
       {/* Animated Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-72 h-72 bg-blue-400/10 dark:bg-blue-500/5 rounded-full blur-3xl animate-pulse"></div>
@@ -232,12 +232,19 @@ const AuthPage = () => {
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+           <form 
+  onSubmit={handleSubmit} 
+  className="space-y-4"
+  autoComplete="off"
+>
+
               {!isLogin && (
                 <Input
                   label="Full Name"
                   type="text"
                   placeholder="John Doe"
+                  name="full_name"
+                  autoComplete="off"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   error={errors.name}
@@ -248,8 +255,10 @@ const AuthPage = () => {
 
               <Input
                 label="Email Address"
-                type="email"
-                placeholder="you@example.com"
+  type="email"
+  name="auth_email"
+  placeholder="you@example.com"
+  autoComplete="off"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 error={errors.email}
@@ -261,7 +270,9 @@ const AuthPage = () => {
                 label="Password"
                 type="password"
                 placeholder="••••••••"
+                name="auth_password"
                 value={formData.password}
+                autoComplete="new-password"
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 error={errors.password}
                 icon={Lock}
@@ -273,6 +284,8 @@ const AuthPage = () => {
                   label="Confirm Password"
                   type="password"
                   placeholder="••••••••"
+                  autoComplete="new-password"
+                  name="confirm_password"
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   error={errors.confirmPassword}

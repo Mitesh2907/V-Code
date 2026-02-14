@@ -14,7 +14,7 @@ const Header = () => {
   const isDarkMode = theme === "dark";
   const { user, logout, isAuthenticated, loading } = useAuth();
   const [isAvatarOpen, setIsAvatarOpen] = useState(false);
-  
+
 
   useEffect(() => {
     const handleScroll = () => {
@@ -40,13 +40,14 @@ const Header = () => {
 
   return (
     <header className={`
-      sticky top-0 z-50 w-full 
-      transition-all duration-300
-      ${isScrolled
-        ? 'bg-transparent dark:bg-transparent border-b border-gray-200 dark:border-gray-800'
-        : 'bg-transparent dark:bg-transparent border-b border-gray-200/50 dark:border-gray-800/50'
+  fixed top-0 left-0 w-full z-50
+  transition-all duration-300
+  ${isScrolled
+        ? 'bg-white/90 dark:bg-[#0f172a]/90 backdrop-blur-md shadow-md border-b border-gray-200 dark:border-gray-800'
+        : 'bg-transparent'
       }
-    `}>
+`}>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 md:h-18 items-center justify-between">
           {/* Logo */}
@@ -151,9 +152,18 @@ const Header = () => {
 
 
                 {isAvatarOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg py-1 z-50">
+                  <div className="absolute right-0 mt-2 w-48 
+  bg-white dark:bg-gray-800 
+  text-gray-800 dark:text-gray-200
+  border border-gray-200 dark:border-gray-700 
+  rounded-md shadow-xl 
+  py-1 z-50">
 
-                    <div className="px-4 py-2 text-sm border-b">
+
+                    <div className="px-4 py-2 text-sm 
+  text-gray-800 dark:text-gray-200
+  border-b border-gray-200 dark:border-gray-700">
+
                       {user?.fullName}
                     </div>
 
@@ -162,7 +172,10 @@ const Header = () => {
                         setIsAvatarOpen(false);
                         navigate("/profile");
                       }}
-                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                      className="w-full text-left px-4 py-2 text-sm 
+  text-gray-700 dark:text-gray-300
+  hover:bg-gray-100 dark:hover:bg-gray-700"
+
                     >
                       View Profile
                     </button>
@@ -173,7 +186,10 @@ const Header = () => {
                         logout();
                         navigate('/');
                       }}
-                      className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                      className="w-full text-left px-4 py-2 text-sm 
+  text-gray-700 dark:text-gray-300
+  hover:bg-gray-100 dark:hover:bg-gray-700"
+
                     >
                       Sign Out
                     </button>

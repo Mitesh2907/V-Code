@@ -69,28 +69,36 @@ const CreateRoomPage = () => {
         <CardContent className="space-y-4">
           <Input
             label="Room Number"
+            name="room_code"
+            autoComplete="off"
             placeholder="e.g., VC-1023"
             value={roomNumber}
             onChange={(e) => setRoomNumber(e.target.value)}
             required
           />
 
+
           <Input
             label="Room Name"
+            name="room_title"
+            autoComplete="off"
             placeholder="e.g., Frontend Discussion Room"
             value={roomName}
             onChange={(e) => setRoomName(e.target.value)}
             required
           />
 
+
           <Input
             type="password"
+            name="room_pass"
+            autoComplete="new-password"
             label="Password"
             placeholder="Set a password to make this room private"
             value={roomPassword}
             onChange={(e) => setRoomPassword(e.target.value)}
-            helperText="If set, the room will be private and require this password to join. Leave empty for public rooms."
           />
+
         </CardContent>
 
         <CardFooter>

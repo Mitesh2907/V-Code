@@ -8,7 +8,7 @@ export const createUser = async ({ fullName, email, password }) => {
 
   const [result] = await db.query(
     `
-    INSERT INTO users (full_name, email, password)
+    INSERT INTO users (fullName, email, password)
     VALUES (?, ?, ?)
     `,
     [fullName, email, password]

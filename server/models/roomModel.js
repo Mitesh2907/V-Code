@@ -77,12 +77,14 @@ export const getJoinedRoomsDB = async (userId) => {
      FROM rooms r
      INNER JOIN room_members rm ON r.id = rm.room_id
      WHERE rm.user_id = ?
+     AND r.created_by != ?
      ORDER BY rm.joined_at DESC`,
-    [userId]
+    [userId, userId]
   );
 
   return rows;
 };
+
 
 /**
  * Check if user is a member of a room

@@ -698,14 +698,18 @@ console.log(result);`);
 
   return (
     <div
-      className={`flex flex-col h-screen transition-colors duration-300
+  className={`flex flex-col transition-colors duration-300
     ${theme === "dark"
-          ? "bg-gray-900 text-gray-100"
-          : "bg-gray-100 text-gray-900"
-        }
-    ${isFullscreen ? 'fixed inset-0 z-50' : ''}
+      ? "bg-gray-900 text-gray-100"
+      : "bg-gray-100 text-gray-900"
+    }
+    ${isFullscreen
+      ? "fixed inset-0 z-50 h-screen"
+      : "pt-16 h-[calc(100vh-4rem)]"
+    }
   `}
-    >
+>
+
 
       {/* Top Bar (compact, VS Code like) */}
       <div
