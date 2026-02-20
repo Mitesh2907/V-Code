@@ -13,6 +13,11 @@ import editorRoutes from "./routes/editorRoutes.js";
 import chatRoutes from "./routes/chatRoutes.js";
 import chatSocket from "./sockets/chatSocket.js";
 
+// admin 
+import adminUserRoutes from "./routes/admin/adminUserRoutes.js";
+import adminRoomRoutes from "./routes/admin/adminRoomRoutes.js";
+import adminSystemRoutes from "./routes/admin/adminSystemRoutes.js";
+
 dotenv.config();
 
 const app = express();
@@ -33,6 +38,11 @@ app.use("/api/auth", authRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/editor", editorRoutes);
 app.use("/api/chat", chatRoutes);
+
+/* ---------------- ADMIN ROUTES ---------------- */
+app.use("/api/admin/users", adminUserRoutes);
+app.use("/api/admin/rooms", adminRoomRoutes);
+app.use("/api/admin", adminSystemRoutes);
 
 app.get("/", (req, res) => {
   res.send("API + Socket Server Running");

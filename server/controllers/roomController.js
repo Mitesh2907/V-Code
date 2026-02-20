@@ -69,6 +69,15 @@ export const joinRoom = async (req, res) => {
       return res.status(404).json({ message: "Room not found" });
     }
 
+    // ❌ ROOM CLOSED CHECK
+if (room.status === "closed") {
+  return res.status(403).json({
+    success: false,
+    message: "This room has been closed by admin",
+  });
+}
+
+
     const isMatch = await bcrypt.compare(password, room.password);
     if (!isMatch) {
       return res.status(401).json({ message: "Invalid room password" });
@@ -124,7 +133,7 @@ export const getJoinedRooms = async (req, res) => {
 export const enterRoom = async (req, res) => {
   try {
     const { roomId } = req.params;
-    const userId = req.userId; // authMiddleware se aata hai
+    const userId = req.userId;
 
     if (!roomId) {
       return res.status(400).json({
@@ -133,8 +142,9 @@ export const enterRoom = async (req, res) => {
       });
     }
 
-    // 1️⃣ Room exist karta hai?
+    // 1️⃣ Room exist?
     const room = await getRoomByIdDB(roomId);
+
     if (!room) {
       return res.status(404).json({
         success: false,
@@ -142,7 +152,15 @@ export const enterRoom = async (req, res) => {
       });
     }
 
-    // 2️⃣ User room ka member hai?
+    // 🔒 2️⃣ CLOSED ROOM BLOCK (IMPORTANT)
+    if (room.status !== "active") {
+      return res.status(403).json({
+        success: false,
+        message: "This room has been closed by admin",
+      });
+    }
+
+    // 3️⃣ Member check
     const isMember = await isUserRoomMemberDB(roomId, userId);
     if (!isMember) {
       return res.status(403).json({
@@ -151,7 +169,6 @@ export const enterRoom = async (req, res) => {
       });
     }
 
-    // 3️⃣ Allow entry
     return res.status(200).json({
       success: true,
       message: "Entered room successfully",
@@ -162,6 +179,7 @@ export const enterRoom = async (req, res) => {
         createdAt: room.created_at,
       },
     });
+
   } catch (error) {
     console.error("Enter Room Error:", error);
     res.status(500).json({
@@ -170,6 +188,7 @@ export const enterRoom = async (req, res) => {
     });
   }
 };
+
 
 export const deleteRoom = async (req, res) => {
   try {

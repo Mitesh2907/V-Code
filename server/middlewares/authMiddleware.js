@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
+import connectDB from "../config/db.js";
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -11,7 +12,24 @@ const authMiddleware = (req, res, next) => {
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // 🔥 ONLY THIS (NO req.user)
+    const pool = await connectDB();
+
+    // 🔥 Check user status from DB
+    const [rows] = await pool.query(
+      "SELECT status FROM users WHERE id = ?",
+      [decoded.userId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (rows[0].status === "blocked") {
+      return res.status(403).json({
+        message: "Your account has been blocked by admin",
+      });
+    }
+
     req.userId = decoded.userId;
 
     next();

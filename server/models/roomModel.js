@@ -56,7 +56,7 @@ export const getCreatedRoomsDB = async (userId) => {
   const pool = await connectDB();
 
   const [rows] = await pool.query(
-    `SELECT id, room_number, room_name, created_at
+    `SELECT id, room_number, room_name, status, created_at
      FROM rooms
      WHERE created_by = ?
      ORDER BY created_at DESC`,
@@ -73,7 +73,7 @@ export const getJoinedRoomsDB = async (userId) => {
   const pool = await connectDB();
 
   const [rows] = await pool.query(
-    `SELECT r.id, r.room_number, r.room_name, r.created_at
+    `SELECT r.id, r.room_number, r.room_name, r.status, r.created_at
      FROM rooms r
      INNER JOIN room_members rm ON r.id = rm.room_id
      WHERE rm.user_id = ?
@@ -109,12 +109,13 @@ export const getRoomByIdDB = async (roomId) => {
   const pool = await connectDB();
 
   const [rows] = await pool.query(
-    `SELECT id, room_number, room_name, created_at
+    `SELECT id, room_number, room_name, status, created_at
      FROM rooms
      WHERE id = ?
      LIMIT 1`,
     [roomId]
   );
 
-  return rows[0]; // undefined if not found
+  return rows[0];
 };
+

@@ -33,16 +33,31 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ message: "Email already registered" });
     }
 
+    const pool = await connectDB();
+
+    // 🔥 Check if admin already exists
+    const [[{ adminCount }]] = await pool.query(
+      "SELECT COUNT(*) as adminCount FROM users WHERE role = 'admin'"
+    );
+
+    let role = "user";
+
+    // First registered user becomes admin
+    if (adminCount === 0) {
+      role = "admin";
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const result = await createUser({
-      fullName,
-      email,
-      password: hashedPassword,
-    });
+    const result = await pool.query(
+      "INSERT INTO users (full_name, email, password, role) VALUES (?, ?, ?, ?)",
+      [fullName, email, hashedPassword, role]
+    );
+
+    const userId = result[0].insertId;
 
     const token = jwt.sign(
-      { userId: result.insertId },
+      { userId, role },   // 🔥 include role in JWT
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -51,17 +66,20 @@ export const registerUser = async (req, res) => {
       message: "Account created successfully",
       token,
       user: {
-        id: result.insertId,
+        id: userId,
         fullName,
         email,
-        avatar: null, // default
+        role,
+        avatar: null,
       },
     });
+
   } catch (error) {
     console.error("Register Error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 /**
  * LOGIN
@@ -90,8 +108,16 @@ export const loginUser = async (req, res) => {
       });
     }
 
+    // 🚫 CHECK IF USER IS BLOCKED
+    if (user.status === "blocked") {
+      return res.status(403).json({
+        message: "Your account has been blocked by admin",
+      });
+    }
+
+
     const token = jwt.sign(
-      { userId: user.id },
+      { userId: user.id, role: user.role },  // 🔥 include role
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -101,11 +127,13 @@ export const loginUser = async (req, res) => {
       token,
       user: {
         id: user.id,
-        fullName: user.fullName,   
+        fullName: user.full_name,  // ⚠ DB column fix
         email: user.email,
-        avatar: user.avatar, 
+        avatar: user.avatar,
+        role: user.role,
       },
     });
+
   } catch (error) {
     console.error("Login Error:", error);
     res.status(500).json({ message: "Server error" });
@@ -126,7 +154,7 @@ export const getCurrentUser = async (req, res) => {
     res.status(200).json({
       user: {
         id: user.id,
-        fullName: user.fullName, 
+        fullName: user.fullName,
         email: user.email,
         avatar: user.avatar,
       },

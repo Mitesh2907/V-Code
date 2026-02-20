@@ -23,6 +23,8 @@ import {
 } from "../models/fileContentModel.js";
 
 import { isUserRoomMemberDB } from "../models/roomModel.js";
+import { getRoomByIdDB } from "../models/roomModel.js";
+
 
 
 const renameRecursive = (items, id, newName) => {
@@ -296,7 +298,24 @@ export const getRoomEditorData = async (req, res) => {
     const { roomId } = req.params;
     const userId = req.userId;
 
-    // 🔐 Room member check
+    // 🔴 FIRST: Check room status
+    const room = await getRoomByIdDB(roomId);
+
+    if (!room) {
+      return res.status(404).json({
+        success: false,
+        message: "Room not found",
+      });
+    }
+
+    if (room.status !== "active") {
+      return res.status(403).json({
+        success: false,
+        message: "This room has been closed by admin",
+      });
+    }
+
+    // 🔐 THEN: Member check
     const isMember = await isUserRoomMemberDB(roomId, userId);
     if (!isMember) {
       return res.status(403).json({
@@ -308,7 +327,6 @@ export const getRoomEditorData = async (req, res) => {
     const folders = await getFoldersByRoomDB(roomId);
     const files = await getFilesByRoomDB(roomId);
 
-    // attach content to files
     const filesWithContent = await Promise.all(
       files.map(async (file) => {
         const contentData = await getFileContentByFileIdDB(file.id);
@@ -335,6 +353,7 @@ export const getRoomEditorData = async (req, res) => {
     });
   }
 };
+
 
 export const renameItem = async (req, res) => {
   try {

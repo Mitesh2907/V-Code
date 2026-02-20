@@ -6,34 +6,34 @@ const initDB = async () => {
 
     // USERS
     // USERS
-    await pool.query(`
+   await pool.query(`
   CREATE TABLE IF NOT EXISTS users (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    full_name VARCHAR(100),
-    email VARCHAR(100) UNIQUE,
-    password VARCHAR(255),
+    full_name VARCHAR(100) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
     avatar VARCHAR(255) DEFAULT NULL,
+    role ENUM('admin','moderator','user') DEFAULT 'user',
+    status ENUM('active','blocked','inactive') DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
   )
-`);
-
-    await pool.query(`
-  ALTER TABLE users
-  ADD COLUMN IF NOT EXISTS avatar VARCHAR(255) DEFAULT NULL
 `);
 
 
     // ROOMS
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS rooms (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        room_number VARCHAR(20) UNIQUE NOT NULL,
-        room_name VARCHAR(100) NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        created_by INT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  CREATE TABLE IF NOT EXISTS rooms (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    room_number VARCHAR(20) UNIQUE NOT NULL,
+    room_name VARCHAR(100) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    created_by INT NOT NULL,
+    status ENUM('active','closed') DEFAULT 'active',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+  )
+`);
+
 
     // ROOM MEMBERS
     await pool.query(`

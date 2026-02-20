@@ -51,9 +51,20 @@ const RoomsPage = () => {
     }
   };
 
-  const enterRoom = (roomId) => {
-    navigate(`/editor/${roomId}`);
+  const enterRoom = async (roomId) => {
+    try {
+      const { data } = await api.get(`/rooms/${roomId}/enter`);
+
+      if (data.success) {
+        navigate(`/editor/${roomId}`);
+      }
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to enter room"
+      );
+    }
   };
+
 
   /* ================= DELETE / EXIT ================= */
 
@@ -172,9 +183,14 @@ const RoomsPage = () => {
               </div>
 
               <div className="flex items-center space-x-3">
-                <Button size="sm" onClick={() => enterRoom(r.id)}>
-                  Enter
+                <Button
+                  size="sm"
+                  disabled={r.status !== "active"}
+                  onClick={() => enterRoom(r.id)}
+                >
+                  {r.status !== "active" ? "Closed" : "Enter"}
                 </Button>
+
 
                 <div className="relative">
                   <button
@@ -263,9 +279,14 @@ const RoomsPage = () => {
               </div>
 
               <div className="flex items-center space-x-3">
-                <Button size="sm" onClick={() => enterRoom(r.id)}>
-                  Enter
+                <Button
+                  size="sm"
+                  disabled={r.status !== "active"}
+                  onClick={() => enterRoom(r.id)}
+                >
+                  {r.status !== "active" ? "Closed" : "Enter"}
                 </Button>
+
 
                 <div className="relative">
                   <button
