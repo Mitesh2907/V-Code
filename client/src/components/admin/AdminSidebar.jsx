@@ -19,7 +19,7 @@ const AdminSidebar = ({ collapsed, setCollapsed }) => {
     { path: '/admin/users', icon: Users, label: 'Users' },
     { path: '/admin/rooms', icon: DoorOpen, label: 'Rooms' },
     { path: '/admin/system', icon: HardDrive, label: 'System' },
-    { path: '/admin/activity', icon: Activity, label: 'Activity' },
+    // { path: '/admin/activity', icon: Activity, label: 'Activity' },
   ];
 
   return (

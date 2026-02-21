@@ -296,28 +296,22 @@ console.log(result);`);
 
 
   useEffect(() => {
-  const loadEditor = async () => {
-    try {
-      const { data } = await api.get(`/editor/room/${roomId}`);
-      setFileSystem(data.tree);
-    } catch (error) {
+    if (!roomId) return;
 
-      if (error.response?.status === 403) {
-        toast.error(
-          error.response?.data?.message || "Room is closed"
-        );
-
-        navigate("/rooms"); // redirect back
-        return;
+    const loadEditor = async () => {
+      try {
+        const { data } = await api.get(`/editor/room/${roomId}`);
+        setFileSystem(data.tree);
+        setRoomName(data.room?.name || null);
+      } catch (err) {
+        toast.error("Editor load failed");
+      } finally {
+        setLoading(false);
       }
+    };
 
-      toast.error("Editor load failed");
-    }
-  };
-
-  loadEditor();
-}, [roomId, navigate]);
-
+    loadEditor();
+  }, [roomId]);
 
 
   useEffect(() => {

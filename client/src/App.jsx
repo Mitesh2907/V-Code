@@ -32,7 +32,6 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminRooms from "./pages/admin/AdminRooms";
 import AdminSystem from "./pages/admin/AdminSystem";
-import AdminActivity from "./pages/admin/AdminActivity";
 
 
 /* =========================
@@ -121,7 +120,7 @@ function AppContent() {
             <Route path="users" element={<AdminUsers />} />
             <Route path="rooms" element={<AdminRooms />} />
             <Route path="system" element={<AdminSystem />} />
-            <Route path="activity" element={<AdminActivity />} />
+            {/* <Route path="activity" element={<AdminActivity />} /> */}
           </Route>
 
 

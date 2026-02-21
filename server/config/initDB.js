@@ -105,6 +105,24 @@ const initDB = async () => {
   ADD COLUMN IF NOT EXISTS is_seen BOOLEAN DEFAULT FALSE
 `);
 
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS activities (
+    id VARCHAR(30) PRIMARY KEY,
+    type VARCHAR(50) NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    severity ENUM('info','success','warning','error') DEFAULT 'info',
+    user_id INT NOT NULL,
+    room_id INT NULL,
+    metadata JSON,
+    is_read BOOLEAN DEFAULT FALSE,
+    is_starred BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE SET NULL
+  )
+`);
+
+
 
     console.log("✅ All tables initialized successfully");
   } catch (error) {
