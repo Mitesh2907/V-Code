@@ -32,6 +32,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminRooms from "./pages/admin/AdminRooms";
 import AdminSystem from "./pages/admin/AdminSystem";
+import AdminRoute from "./routes/AdminRoute";
 
 
 /* =========================
@@ -114,15 +115,22 @@ function AppContent() {
             }
           />
 
-          {/* 🔥 Admin Routes (Separate Layout) */}
-          <Route path="/admin" element={<AdminLayout />}>
+          {/* Admin Routes */}
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <AdminRoute>
+                  <AdminLayout />
+                </AdminRoute>
+              </ProtectedRoute>
+            }
+          >
             <Route index element={<AdminDashboard />} />
             <Route path="users" element={<AdminUsers />} />
             <Route path="rooms" element={<AdminRooms />} />
             <Route path="system" element={<AdminSystem />} />
-            {/* <Route path="activity" element={<AdminActivity />} /> */}
           </Route>
-
 
           {/* ❌ 404 */}
           <Route path="*" element={<NotFoundPage />} />

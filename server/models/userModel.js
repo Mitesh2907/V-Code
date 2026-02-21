@@ -39,7 +39,7 @@ export const findUserById = async (id) => {
 
   const [rows] = await db.query(
     `
-    SELECT id, fullName, email, avatar
+    SELECT id, fullName, email, avatar, role
     FROM users
     WHERE id = ?
     LIMIT 1

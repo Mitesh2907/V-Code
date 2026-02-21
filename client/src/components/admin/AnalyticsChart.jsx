@@ -1,8 +1,17 @@
-// src/components/admin/AnalyticsChart.jsx
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import {
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Area,
+  AreaChart
+} from 'recharts';
 import { motion } from 'framer-motion';
+import { useEffect } from "react";
 
-const AnalyticsChart = ({ data, title }) => {
+const AnalyticsChart = ({ data = [], title }) => {
+
   const CustomTooltip = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       return (
@@ -17,6 +26,14 @@ const AnalyticsChart = ({ data, title }) => {
     return null;
   };
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      window.dispatchEvent(new Event("resize"));
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -24,36 +41,46 @@ const AnalyticsChart = ({ data, title }) => {
       className="bg-gray-900/50 backdrop-blur-xl border border-gray-800/50 rounded-2xl p-6"
     >
       <h3 className="text-lg font-semibold text-white mb-6">{title}</h3>
-      
-      <div className="h-80">
-        <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-            <defs>
-              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#6366F1" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#6366F1" stopOpacity={0}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
-            <XAxis 
-              dataKey="name" 
-              stroke="#6B7280"
-              tick={{ fill: '#9CA3AF', fontSize: 12 }}
-            />
-            <YAxis 
-              stroke="#6B7280"
-              tick={{ fill: '#9CA3AF', fontSize: 12 }}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Area 
-              type="monotone" 
-              dataKey="value" 
-              stroke="#6366F1" 
-              strokeWidth={2}
-              fill="url(#colorValue)" 
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+
+      <div style={{ width: "100%", height: 350 }}>
+
+        {data.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-gray-500">
+            No activity data available
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={data}>
+              <defs>
+                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#6366F1" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#6366F1" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+
+              <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" />
+
+              <XAxis
+                dataKey="name"
+                stroke="#9CA3AF"
+              />
+
+              <YAxis
+                stroke="#9CA3AF"
+              />
+
+              <Tooltip content={<CustomTooltip />} />
+
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="#6366F1"
+                fill="url(#colorValue)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
+
       </div>
     </motion.div>
   );

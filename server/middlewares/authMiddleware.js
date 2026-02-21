@@ -14,9 +14,9 @@ const authMiddleware = async (req, res, next) => {
 
     const pool = await connectDB();
 
-    // 🔥 Check user status from DB
+    // 🔥 Fetch full user (INCLUDING role)
     const [rows] = await pool.query(
-      "SELECT status FROM users WHERE id = ?",
+      "SELECT id, fullName, email, role, status FROM users WHERE id = ?",
       [decoded.userId]
     );
 
@@ -24,15 +24,21 @@ const authMiddleware = async (req, res, next) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (rows[0].status === "blocked") {
+    const user = rows[0];
+
+    // 🚫 Check blocked
+    if (user.status === "blocked") {
       return res.status(403).json({
         message: "Your account has been blocked by admin",
       });
     }
 
-    req.userId = decoded.userId;
+    // ✅ Important: attach full user object
+    req.user = user;
+    req.userId = user.id;
 
     next();
+
   } catch (error) {
     return res.status(401).json({ message: "Token invalid" });
   }

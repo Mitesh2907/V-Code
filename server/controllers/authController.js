@@ -115,9 +115,15 @@ export const loginUser = async (req, res) => {
       });
     }
 
+    // 🔥 UPDATE last_login
+    const pool = await connectDB();
+    await pool.query(
+      "UPDATE users SET last_login = NOW() WHERE id = ?",
+      [user.id]
+    );
 
     const token = jwt.sign(
-      { userId: user.id, role: user.role },  // 🔥 include role
+      { userId: user.id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -127,7 +133,7 @@ export const loginUser = async (req, res) => {
       token,
       user: {
         id: user.id,
-        fullName: user.full_name,  // ⚠ DB column fix
+        fullName: user.full_name,
         email: user.email,
         avatar: user.avatar,
         role: user.role,
@@ -157,6 +163,7 @@ export const getCurrentUser = async (req, res) => {
         fullName: user.fullName,
         email: user.email,
         avatar: user.avatar,
+        role: user.role ,
       },
     });
 
