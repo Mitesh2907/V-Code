@@ -14,9 +14,12 @@ import chatRoutes from "./routes/chatRoutes.js";
 import chatSocket from "./sockets/chatSocket.js";
 
 // admin 
+import adminAuthRoutes from "./routes/admin/adminAuthRoutes.js";
+import adminProfileRoutes from "./routes/admin/adminProfileRoutes.js";
 import adminUserRoutes from "./routes/admin/adminUserRoutes.js";
 import adminRoomRoutes from "./routes/admin/adminRoomRoutes.js";
 import adminSystemRoutes from "./routes/admin/adminSystemRoutes.js";
+import adminSettingsRoutes from "./routes/admin/adminSettingsRoutes.js";
 
 
 dotenv.config();
@@ -36,14 +39,17 @@ await initDB();
 
 /* ---------------- ROUTES ---------------- */
 app.use("/api/auth", authRoutes);
+app.use("/api/admin", adminProfileRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/editor", editorRoutes);
 app.use("/api/chat", chatRoutes);
 
 /* ---------------- ADMIN ROUTES ---------------- */
+app.use("/api/admin", adminAuthRoutes);
 app.use("/api/admin/users", adminUserRoutes);
 app.use("/api/admin/rooms", adminRoomRoutes);
 app.use("/api/admin", adminSystemRoutes);
+app.use("/api/admin", adminSettingsRoutes);
 
 app.get("/", (req, res) => {
   res.send("API + Socket Server Running");
