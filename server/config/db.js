@@ -6,25 +6,29 @@ const connectDB = async () => {
   try {
     if (!pool) {
       pool = mysql.createPool({
-        host: process.env.DB_HOST,   
-        port: process.env.DB_PORT,   // 3306
-        user: process.env.DB_USER,   // root
-        password: process.env.DB_PASSWORD, 
+        host: process.env.DB_HOST,
+        port: Number(process.env.DB_PORT),   // 🔥 important
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
         database: process.env.DB_NAME,
+
+        ssl: {
+          rejectUnauthorized: false,  // 🔥 Railway ke liye required
+        },
+
         waitForConnections: true,
         connectionLimit: 10,
-        connectTimeout: 10000, 
+        connectTimeout: 10000,
       });
 
-      // hard test
       await pool.query("SELECT 1");
-      console.log("✅ MySQL (XAMPP) Connected Successfully");
+      console.log("✅ MySQL Connected Successfully");
     }
 
     return pool;
   } catch (error) {
     console.error("❌ MySQL Connection Failed:", error.message);
-    process.exit(1);
+    throw error;  // 🔥 process.exit remove karo (Vercel crash karta hai)
   }
 };
 
