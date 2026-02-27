@@ -87,7 +87,7 @@ const initDB = async () => {
 
     // ✅ MESSAGES TABLE (IMPORTANT FIX)
     // ✅ MESSAGES TABLE
-    await pool.query(`
+   await pool.query(`
   CREATE TABLE IF NOT EXISTS messages (
     id INT AUTO_INCREMENT PRIMARY KEY,
     room_id INT NOT NULL,
@@ -98,11 +98,6 @@ const initDB = async () => {
     FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   )
-`);
-
-    await pool.query(`
-  ALTER TABLE messages 
-  ADD COLUMN IF NOT EXISTS is_seen BOOLEAN DEFAULT FALSE
 `);
 
 await pool.query(`
