@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
-const videoSocket = io("http://localhost:5000", {
+const videoSocket = io(import.meta.env.VITE_API_URL, {
   transports: ["websocket"],
 });
 
