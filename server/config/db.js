@@ -1,34 +1,26 @@
-import mysql from "mysql2/promise";
+import pkg from 'pg';
+const { Pool } = pkg;
 
 let pool;
 
 const connectDB = async () => {
   try {
     if (!pool) {
-      pool = mysql.createPool({
-        host: process.env.DB_HOST,
-        port: Number(process.env.DB_PORT),   // 🔥 important
-        user: process.env.DB_USER,
-        password: process.env.DB_PASSWORD,
-        database: process.env.DB_NAME,
-
+      pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
         ssl: {
-          rejectUnauthorized: false,  // 🔥 Railway ke liye required
+          rejectUnauthorized: false,
         },
-
-        waitForConnections: true,
-        connectionLimit: 10,
-        connectTimeout: 10000,
       });
 
       await pool.query("SELECT 1");
-      console.log("✅ MySQL Connected Successfully");
+      console.log("✅ PostgreSQL Connected Successfully");
     }
 
     return pool;
   } catch (error) {
-    console.error("❌ MySQL Connection Failed:", error.message);
-    throw error;  // 🔥 process.exit remove karo (Vercel crash karta hai)
+    console.error("❌ PostgreSQL Connection Failed:", error.message);
+    throw error;
   }
 };
 

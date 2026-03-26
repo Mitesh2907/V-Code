@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
-const socket = io("https://v-code-production-8f3a.up.railway.app", {
+const socket = io("http://localhost:5000", {
   withCredentials: true,
 });
 
