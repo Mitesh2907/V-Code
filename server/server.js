@@ -118,6 +118,13 @@ io.on("connection", (socket) => {
   });
 });
 
+app.get("/test", async (req, res) => {
+  res.json({
+    message: "Backend working 🚀",
+    status: "success"
+  });
+});
+
 /* ================= START SERVER ================= */
 
 const PORT = process.env.PORT || 5000;
