@@ -2,7 +2,6 @@ import connectDB from "../config/db.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import {
-  createUser,
   findUserByEmail,
   findUserById,
 } from "../models/userModel.js";
@@ -14,6 +13,7 @@ export const registerUser = async (req, res) => {
   try {
     const { fullName, email, password, confirmPassword } = req.body;
 
+    // validations
     if (!fullName || !email || !password || !confirmPassword) {
       return res.status(400).json({ message: "All fields are required" });
     }
@@ -35,29 +35,29 @@ export const registerUser = async (req, res) => {
 
     const pool = await connectDB();
 
-    // 🔥 Check if admin already exists
-    const [[{ adminCount }]] = await pool.query(
+    // ✅ ADMIN CHECK (PostgreSQL FIX)
+    const adminRes = await pool.query(
       "SELECT COUNT(*) as adminCount FROM users WHERE role = 'admin'"
     );
 
-    let role = "user";
+    const adminCount = parseInt(adminRes.rows[0].admincount);
 
-    // First registered user becomes admin
-    if (adminCount === 0) {
-      role = "admin";
-    }
+    let role = adminCount === 0 ? "admin" : "user";
 
+    // hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const result = await pool.query(
-      "INSERT INTO users (full_name, email, password, role) VALUES (?, ?, ?, ?)",
+    // ✅ INSERT USER (PostgreSQL FIX)
+    const insertRes = await pool.query(
+      "INSERT INTO users (full_name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id",
       [fullName, email, hashedPassword, role]
     );
 
-    const userId = result[0].insertId;
+    const userId = insertRes.rows[0].id;
 
+    // JWT
     const token = jwt.sign(
-      { userId, role },   // 🔥 include role in JWT
+      { userId, role },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
@@ -79,7 +79,6 @@ export const registerUser = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 /**
  * LOGIN
@@ -108,17 +107,17 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    // 🚫 CHECK IF USER IS BLOCKED
     if (user.status === "blocked") {
       return res.status(403).json({
         message: "Your account has been blocked by admin",
       });
     }
 
-    // 🔥 UPDATE last_login
     const pool = await connectDB();
+
+    // ✅ UPDATE last login (PostgreSQL FIX)
     await pool.query(
-      "UPDATE users SET last_login = NOW() WHERE id = ?",
+      "UPDATE users SET last_login = NOW() WHERE id = $1",
       [user.id]
     );
 
@@ -160,10 +159,10 @@ export const getCurrentUser = async (req, res) => {
     res.status(200).json({
       user: {
         id: user.id,
-        fullName: user.fullName,
+        fullName: user.fullname || user.full_name,
         email: user.email,
         avatar: user.avatar,
-        role: user.role ,
+        role: user.role,
       },
     });
 
@@ -173,7 +172,9 @@ export const getCurrentUser = async (req, res) => {
   }
 };
 
-
+/**
+ * CHANGE PASSWORD
+ */
 export const changePassword = async (req, res) => {
   try {
     const userId = req.userId;
@@ -188,12 +189,12 @@ export const changePassword = async (req, res) => {
 
     const pool = await connectDB();
 
-    const [users] = await pool.query(
-      "SELECT id, password FROM users WHERE id = ?",
+    const result = await pool.query(
+      "SELECT id, password FROM users WHERE id = $1",
       [userId]
     );
 
-    const user = users[0];
+    const user = result.rows[0];
 
     if (!user) {
       return res.status(404).json({
@@ -214,7 +215,7 @@ export const changePassword = async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await pool.query(
-      "UPDATE users SET password = ? WHERE id = ?",
+      "UPDATE users SET password = $1 WHERE id = $2",
       [hashedPassword, userId]
     );
 
@@ -232,6 +233,9 @@ export const changePassword = async (req, res) => {
   }
 };
 
+/**
+ * UPDATE PROFILE
+ */
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.userId;
@@ -247,7 +251,7 @@ export const updateProfile = async (req, res) => {
     const pool = await connectDB();
 
     await pool.query(
-      "UPDATE users SET fullName = ? WHERE id = ?",
+      "UPDATE users SET full_name = $1 WHERE id = $2",
       [name, userId]
     );
 
@@ -264,5 +268,3 @@ export const updateProfile = async (req, res) => {
     });
   }
 };
-
-
