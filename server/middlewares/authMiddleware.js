@@ -16,9 +16,9 @@ const authMiddleware = async (req, res, next) => {
 
     // 🔥 Fetch full user (INCLUDING role)
     const [rows] = await pool.query(
-      "SELECT id, fullName, email, role, status FROM users WHERE id = ?",
-      [decoded.userId]
-    );
+  "SELECT id, fullName, email, role, status FROM users WHERE id = ?",
+  [decoded.id]   
+);
 
     if (!rows.length) {
       return res.status(404).json({ message: "User not found" });
