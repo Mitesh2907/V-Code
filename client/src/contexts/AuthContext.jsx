@@ -9,42 +9,46 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 🔁 App reload hone par user restore
+  // 🔁 Restore user on app load
   useEffect(() => {
-  const initAuth = async () => {
-    const token = localStorage.getItem("vcode-token");
-    const savedUser = localStorage.getItem("vcode-user");
+    const initAuth = async () => {
+      const token = localStorage.getItem("vcode-token");
+      const savedUser = localStorage.getItem("vcode-user");
 
-    // 🔥 Step 1: pehle localStorage se user set karo
-    if (savedUser) {
-      setUser(JSON.parse(savedUser));
-    }
+      // Step 1: restore from localStorage
+      if (savedUser) {
+        setUser(JSON.parse(savedUser));
+      }
 
-    // 🔥 Step 2: agar token nahi hai to stop
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+      // Step 2: stop if no token
+      if (!token) {
+        setLoading(false);
+        return;
+      }
 
-    try {
-      // 🔥 Step 3: backend se verify karo
-      const { data } = await api.get("/auth/me");
+      try {
+        // Step 3: verify with backend
+        const { data } = await api.get("/auth/me");
 
-      setUser(data.user);
-      localStorage.setItem("vcode-user", JSON.stringify(data.user));
-    } catch (error) {
-      // 🔥 Step 4: agar token invalid ho to clear karo
-      localStorage.removeItem("vcode-token");
-      localStorage.removeItem("vcode-user");
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
+        const normalizedUser = {
+          ...data.user,
+          fullName: data.user.fullName || data.user.full_name,
+        };
 
-  initAuth();
-}, []);
+        setUser(normalizedUser);
+        localStorage.setItem("vcode-user", JSON.stringify(normalizedUser));
+      } catch (error) {
+        // Step 4: clear invalid token
+        localStorage.removeItem("vcode-token");
+        localStorage.removeItem("vcode-user");
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
 
+    initAuth();
+  }, []);
 
   // 🔐 LOGIN
   const login = async (email, password) => {
@@ -57,13 +61,20 @@ export const AuthProvider = ({ children }) => {
 
       const { token, user } = data;
 
-      localStorage.setItem("vcode-token", token);
-      localStorage.setItem("vcode-user", JSON.stringify(user));
-      setUser(user);
+      // ✅ normalize user
+      const normalizedUser = {
+        ...user,
+        fullName: user.fullName || user.full_name,
+      };
 
-      return user;
+      // ✅ save token + user
+      localStorage.setItem("vcode-token", token);
+      localStorage.setItem("vcode-user", JSON.stringify(normalizedUser));
+
+      setUser(normalizedUser);
+
+      return normalizedUser;
     } catch (error) {
-      // 🔥 Backend ka clear message UI tak bhejo (toast ke liye)
       const message =
         error.response?.data?.message || "Invalid email or password";
       throw new Error(message);
@@ -85,14 +96,21 @@ export const AuthProvider = ({ children }) => {
 
       const { token, user } = data;
 
-      localStorage.setItem("vcode-token", token);
-      localStorage.setItem("vcode-user", JSON.stringify(user));
-      setUser(user);
+      // ✅ normalize user
+      const normalizedUser = {
+        ...user,
+        fullName: user.fullName || user.full_name,
+      };
 
-      return user;
+      // ✅ save token + user
+      localStorage.setItem("vcode-token", token);
+      localStorage.setItem("vcode-user", JSON.stringify(normalizedUser));
+
+      setUser(normalizedUser);
+
+      return normalizedUser;
     } catch (error) {
-      const message =
-        error.response?.data?.message || "Signup failed";
+      const message = error.response?.data?.message || "Signup failed";
       throw new Error(message);
     } finally {
       setLoading(false);
