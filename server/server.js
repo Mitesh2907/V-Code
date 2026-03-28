@@ -34,7 +34,7 @@ const allowedOrigin =
 
 app.use(
   cors({
-    origin: allowedOrigin || "*",
+    origin: allowedOrigin,
     credentials: true,
   })
 );
@@ -72,7 +72,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigin || "*",
+    origin: allowedOrigin,
     credentials: true,
   },
 });
