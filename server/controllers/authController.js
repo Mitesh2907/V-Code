@@ -116,10 +116,10 @@ export const loginUser = async (req, res) => {
     const pool = await connectDB();
 
     // ✅ UPDATE last login (PostgreSQL FIX)
-    await pool.query(
-      "UPDATE users SET last_login = NOW() WHERE id = $1",
-      [user.id]
-    );
+    // await pool.query(
+    //   "UPDATE users SET last_login = NOW() WHERE id = $1",
+    //   [user.id]
+    // );
 
     const token = jwt.sign(
       { userId: user.id, role: user.role },
