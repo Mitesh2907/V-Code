@@ -38,3 +38,38 @@ export const getMessagesByRoomDB = async (roomId) => {
 
   return result.rows;
 };
+
+
+/**
+ * GET UNREAD COUNT
+ */
+export const getUnreadCountDB = async (roomId, userId) => {
+  const db = await connectDB();
+
+  const result = await db.query(
+    `SELECT COUNT(*) AS unread_count
+     FROM messages
+     WHERE room_id = $1
+     AND is_seen = FALSE
+     AND user_id != $2`,
+    [roomId, userId]
+  );
+
+  return Number(result.rows[0].unread_count);
+};
+
+/**
+ * MARK MESSAGES AS SEEN
+ */
+export const markMessagesSeenDB = async (roomId, userId) => {
+  const db = await connectDB();
+
+  await db.query(
+    `UPDATE messages
+     SET is_seen = TRUE
+     WHERE room_id = $1
+     AND user_id != $2
+     AND is_seen = FALSE`,
+    [roomId, userId]
+  );
+};

@@ -1,11 +1,18 @@
-import connectDB from "../config/db.js";
 import {
   createMessageDB,
   getMessagesByRoomDB,
+  getUnreadCountDB,
+  markMessagesSeenDB,
 } from "../models/messageModel.js";
 
+/**
+ * SAVE MESSAGE (socket use)
+ */
 export const saveMessage = async ({ roomId, user, text }) => {
-  if (!roomId || !user || !text) return;
+  if (!roomId || !user || !text) {
+    console.warn("Invalid message data");
+    return;
+  }
 
   await createMessageDB({
     roomId,
@@ -14,6 +21,9 @@ export const saveMessage = async ({ roomId, user, text }) => {
   });
 };
 
+/**
+ * GET ROOM MESSAGES
+ */
 export const getRoomMessages = async (req, res) => {
   try {
     const { roomId } = req.params;
@@ -22,54 +32,39 @@ export const getRoomMessages = async (req, res) => {
 
     res.json({ messages });
   } catch (err) {
-  console.error("❌ getRoomMessages error:", err.message);
-  res.status(500).json({ message: "Failed to load messages" });
-}
-
+    console.error("❌ getRoomMessages error:", err.message);
+    res.status(500).json({ message: "Failed to load messages" });
+  }
 };
 
+/**
+ * GET UNREAD COUNT
+ */
 export const getUnreadCount = async (req, res) => {
   try {
     const { roomId } = req.params;
     const userId = req.userId;
 
-    const db = await connectDB();
+    const unreadCount = await getUnreadCountDB(roomId, userId);
 
-    const result = await db.query(
-      `SELECT COUNT(*) AS unread_count
-       FROM messages
-       WHERE room_id = $1
-       AND is_seen = FALSE
-       AND user_id != $2`,
-      [roomId, userId]
-    );
-
-    res.json({ unreadCount: result.rows[0].unread_count });
-
+    res.json({ unreadCount });
   } catch (err) {
     console.error("Unread count error:", err.message);
     res.status(500).json({ message: "Failed to get unread count" });
   }
 };
 
+/**
+ * MARK MESSAGES AS SEEN
+ */
 export const markMessagesSeen = async (req, res) => {
   try {
     const { roomId } = req.params;
     const userId = req.userId;
 
-    const db = await connectDB();
-
-    await db.query(
-      `UPDATE messages
-       SET is_seen = TRUE
-       WHERE room_id = $1
-       AND user_id != $2
-       AND is_seen = FALSE`,
-      [roomId, userId]
-    );
+    await markMessagesSeenDB(roomId, userId);
 
     res.json({ message: "Messages marked as seen" });
-
   } catch (err) {
     console.error("Mark seen error:", err.message);
     res.status(500).json({ message: "Failed to mark seen" });

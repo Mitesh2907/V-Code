@@ -11,7 +11,8 @@ import {
  */
 export const registerUser = async (req, res) => {
   try {
-    const { fullName, email, password, confirmPassword } = req.body;
+    const { full_name, email, password, confirmPassword } = req.body;
+const fullName = full_name;
 
     // validations
     if (!fullName || !email || !password || !confirmPassword) {
@@ -32,7 +33,6 @@ export const registerUser = async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ message: "Email already registered" });
     }
-
     const pool = await connectDB();
 
     // ✅ ADMIN CHECK
