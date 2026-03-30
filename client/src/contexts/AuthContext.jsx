@@ -17,12 +17,7 @@ export const AuthProvider = ({ children }) => {
 
       // Step 1: restore from localStorage
       if (savedUser) {
-        const parsedUser = JSON.parse(savedUser);
-
-        setUser({
-          ...parsedUser,
-          fullName: parsedUser.fullName || parsedUser.full_name,
-        });
+        setUser(JSON.parse(savedUser));
       }
 
       // Step 2: stop if no token
@@ -93,7 +88,7 @@ export const AuthProvider = ({ children }) => {
     setLoading(true);
     try {
       const { data } = await api.post("/auth/register", {
-        full_name: fullName,
+        fullName,
         email,
         password,
         confirmPassword,
@@ -104,7 +99,7 @@ export const AuthProvider = ({ children }) => {
       // ✅ normalize user
       const normalizedUser = {
         ...user,
-        fullName: user.fullName || user.full_name || "User"
+        fullName: user.fullName || user.full_name,
       };
 
       // ✅ save token + user
@@ -137,7 +132,7 @@ export const AuthProvider = ({ children }) => {
         login,
         signup,
         logout,
-        isAuthenticated: !!user && !!localStorage.getItem("vcode-token"),
+        isAuthenticated: !!user,
       }}
     >
       {children}

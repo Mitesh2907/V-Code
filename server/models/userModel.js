@@ -8,9 +8,9 @@ export const createUser = async ({ fullName, email, password }) => {
 
   const result = await db.query(
     `
-    INSERT INTO users (full_name, email, password)
+    INSERT INTO users (fullName, email, password)
     VALUES ($1, $2, $3)
-    RETURNING id, full_name, email
+    RETURNING id, fullName, email
     `,
     [fullName, email, password]
   );
@@ -40,7 +40,7 @@ export const findUserById = async (id) => {
 
   const result = await db.query(
     `
-    SELECT id, full_name, email, avatar, role
+    SELECT id, fullName, email, avatar, role
     FROM users
     WHERE id = $1
     LIMIT 1

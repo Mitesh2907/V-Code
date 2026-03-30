@@ -35,23 +35,21 @@ export const registerUser = async (req, res) => {
 
     const pool = await connectDB();
 
-    // ✅ ADMIN CHECK
+    // ✅ ADMIN CHECK (PostgreSQL FIX)
     const adminRes = await pool.query(
-      "SELECT COUNT(*) AS admincount FROM users WHERE role = 'admin'"
+      "SELECT COUNT(*) as adminCount FROM users WHERE role = 'admin'"
     );
 
     const adminCount = parseInt(adminRes.rows[0].admincount);
 
-    const role = adminCount === 0 ? "admin" : "user";
+    let role = adminCount === 0 ? "admin" : "user";
 
     // hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // ✅ INSERT USER
+    // ✅ INSERT USER (PostgreSQL FIX)
     const insertRes = await pool.query(
-      `INSERT INTO users (full_name, email, password, role)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id`,
+      "INSERT INTO users (full_name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id",
       [fullName, email, hashedPassword, role]
     );
 
@@ -77,7 +75,7 @@ export const registerUser = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Register Error:", error);
+    console.error("Register Error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -115,6 +113,14 @@ export const loginUser = async (req, res) => {
       });
     }
 
+    const pool = await connectDB();
+
+    // ✅ UPDATE last login (PostgreSQL FIX)
+    // await pool.query(
+    //   "UPDATE users SET last_login = NOW() WHERE id = $1",
+    //   [user.id]
+    // );
+
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.JWT_SECRET,
@@ -134,7 +140,7 @@ export const loginUser = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Login Error:", error);
+    console.error("Login Error:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -153,7 +159,7 @@ export const getCurrentUser = async (req, res) => {
     res.status(200).json({
       user: {
         id: user.id,
-        fullName: user.full_name,
+        fullName: user.fullname || user.full_name,
         email: user.email,
         avatar: user.avatar,
         role: user.role,
@@ -161,7 +167,7 @@ export const getCurrentUser = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ GET /me ERROR:", error);
+    console.error("GET /me ERROR:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -219,7 +225,7 @@ export const changePassword = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ Change Password Error:", err);
+    console.error(err);
     return res.status(500).json({
       success: false,
       message: "Server error",
@@ -255,7 +261,7 @@ export const updateProfile = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ Update Profile Error:", err);
+    console.error(err);
     return res.status(500).json({
       success: false,
       message: "Server error",

@@ -8,10 +8,10 @@ export const saveMessage = async ({ roomId, user, text }) => {
   if (!roomId || !user || !text) return;
 
   await createMessageDB({
-    roomId,
-    userId: user.id || user.userId,
-    message: text,
-  });
+  roomId,
+  userId: user.id,
+  message: text,
+});
 };
 
 export const getRoomMessages = async (req, res) => {
@@ -35,17 +35,16 @@ export const getUnreadCount = async (req, res) => {
 
     const db = await connectDB();
 
-    const result = await db.query(
-      `SELECT COUNT(*) AS unread_count
+    const [rows] = await db.query(
+      `SELECT COUNT(*) AS unreadCount
        FROM messages
-       WHERE room_id = $1
+       WHERE room_id = ?
        AND is_seen = FALSE
-       AND user_id != $2`,
+       AND user_id != ?`,
       [roomId, userId]
     );
 
-    res.json({ unreadCount: result.rows[0].unread_count });
-
+    res.json({ unreadCount: rows[0].unreadCount });
   } catch (err) {
     console.error("Unread count error:", err.message);
     res.status(500).json({ message: "Failed to get unread count" });
@@ -62,14 +61,13 @@ export const markMessagesSeen = async (req, res) => {
     await db.query(
       `UPDATE messages
        SET is_seen = TRUE
-       WHERE room_id = $1
-       AND user_id != $2
+       WHERE room_id = ?
+       AND user_id != ?
        AND is_seen = FALSE`,
       [roomId, userId]
     );
 
     res.json({ message: "Messages marked as seen" });
-
   } catch (err) {
     console.error("Mark seen error:", err.message);
     res.status(500).json({ message: "Failed to mark seen" });

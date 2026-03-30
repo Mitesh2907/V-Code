@@ -14,17 +14,17 @@ const authMiddleware = async (req, res, next) => {
 
     const pool = await connectDB();
 
-    // ✅ PostgreSQL FIX
-    const result = await pool.query(
-      "SELECT id, full_name, email, role, status FROM users WHERE id = $1",
+    // 🔥 Fetch full user (INCLUDING role)
+    const [rows] = await pool.query(
+      "SELECT id, fullName, email, role, status FROM users WHERE id = ?",
       [decoded.userId]
     );
 
-    const user = result.rows[0];
-
-    if (!user) {
+    if (!rows.length) {
       return res.status(404).json({ message: "User not found" });
     }
+
+    const user = rows[0];
 
     // 🚫 Check blocked
     if (user.status === "blocked") {
@@ -33,7 +33,7 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    // ✅ attach user
+    // ✅ Important: attach full user object
     req.user = user;
     req.userId = user.id;
 
