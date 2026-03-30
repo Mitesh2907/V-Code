@@ -111,16 +111,25 @@ export const createFolder = async (req, res) => {
       });
     }
 
-    // 🔐 Room member check
-    const isMember = await isUserRoomMemberDB(roomId, userId);
-    if (!isMember) {
+    // 🔥 FIX: owner + member check
+    const room = await getRoomByIdDB(roomId);
+
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    const isAllowed =
+      room.created_by === userId ||
+      (await isUserRoomMemberDB(roomId, userId));
+
+    if (!isAllowed) {
       return res.status(403).json({
         success: false,
-        message: "You are not a member of this room",
+        message: "Access denied",
       });
     }
 
-    // parent folder validation (if exists)
+    // parent validation
     if (parentId) {
       const parentFolder = await getFolderByIdDB(parentId);
       if (!parentFolder) {
@@ -182,16 +191,25 @@ export const createFile = async (req, res) => {
       });
     }
 
-    // 🔐 Room member check
-    const isMember = await isUserRoomMemberDB(roomId, userId);
-    if (!isMember) {
+    // 🔥 FIX: owner + member check
+    const room = await getRoomByIdDB(roomId);
+
+    if (!room) {
+      return res.status(404).json({ message: "Room not found" });
+    }
+
+    const isAllowed =
+      room.created_by === userId ||
+      (await isUserRoomMemberDB(roomId, userId));
+
+    if (!isAllowed) {
       return res.status(403).json({
         success: false,
-        message: "You are not a member of this room",
+        message: "Access denied",
       });
     }
 
-    // folder validation (if exists)
+    // folder validation
     if (folderId) {
       const folder = await getFolderByIdDB(folderId);
       if (!folder) {
@@ -209,7 +227,6 @@ export const createFile = async (req, res) => {
       language,
     });
 
-    // create empty content for file
     await createFileContentDB(fileId);
 
     const folders = await getFoldersByRoomDB(roomId);
@@ -240,7 +257,6 @@ export const createFile = async (req, res) => {
     });
   }
 };
-
 /**
  * SAVE FILE CONTENT
  * POST /api/editor/save
@@ -298,7 +314,7 @@ export const getRoomEditorData = async (req, res) => {
     const { roomId } = req.params;
     const userId = req.userId;
 
-    // 🔴 FIRST: Check room status
+    // 🔥 Room check
     const room = await getRoomByIdDB(roomId);
 
     if (!room) {
@@ -315,12 +331,15 @@ export const getRoomEditorData = async (req, res) => {
       });
     }
 
-    // 🔐 THEN: Member check
-    const isMember = await isUserRoomMemberDB(roomId, userId);
-    if (!isMember) {
+    // 🔥 FIX: owner + member check
+    const isAllowed =
+      room.created_by === userId ||
+      (await isUserRoomMemberDB(roomId, userId));
+
+    if (!isAllowed) {
       return res.status(403).json({
         success: false,
-        message: "You are not allowed to access this room",
+        message: "Access denied",
       });
     }
 

@@ -147,7 +147,7 @@ const Header = () => {
   bg-gradient-to-br from-blue-500 to-purple-600 
   text-white text-sm font-semibold"
                 >
-                  {user?.fullName?.charAt(0).toUpperCase()}
+                  {user?.fullName?.charAt(0)?.toUpperCase() || "U"}
                 </button>
 
 

@@ -8,7 +8,7 @@ export const createFileContentDB = async (fileId) => {
 
   await pool.query(
     `INSERT INTO file_contents (file_id, content)
-     VALUES (?, ?)`,
+     VALUES ($1, $2)`,
     [fileId, ""]
   );
 };
@@ -21,8 +21,8 @@ export const saveFileContentDB = async (fileId, content) => {
 
   await pool.query(
     `UPDATE file_contents
-     SET content = ?
-     WHERE file_id = ?`,
+     SET content = $1
+     WHERE file_id = $2`,
     [content, fileId]
   );
 };
@@ -33,13 +33,13 @@ export const saveFileContentDB = async (fileId, content) => {
 export const getFileContentByFileIdDB = async (fileId) => {
   const pool = await connectDB();
 
-  const [rows] = await pool.query(
+  const result = await pool.query(
     `SELECT content, updated_at
      FROM file_contents
-     WHERE file_id = ?
+     WHERE file_id = $1
      LIMIT 1`,
     [fileId]
   );
 
-  return rows[0]; // { content, updated_at }
+  return result.rows[0];
 };

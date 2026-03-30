@@ -190,77 +190,57 @@ export const enterRoom = async (req, res) => {
 };
 
 
-export const deleteRoom = async (req, res) => {
-  try {
-    const { roomId } = req.params;
-    const userId = req.userId;
+import connectDB from "../config/db.js";
 
-    const pool = await connectDB();
+/**
+ * CREATE USER
+ */
+export const createUser = async ({ fullName, email, password }) => {
+  const db = await connectDB();
 
-    // ✅ Check ownership
-    const [rooms] = await pool.query(
-      "SELECT * FROM rooms WHERE id = ? AND created_by = ?",
-      [roomId, userId]
-    );
+  const result = await db.query(
+    `
+    INSERT INTO users (fullName, email, password)
+    VALUES ($1, $2, $3)
+    RETURNING id, fullName, email
+    `,
+    [fullName, email, password]
+  );
 
-    if (rooms.length === 0) {
-      return res.status(403).json({ message: "Not authorized" });
-    }
+  return result.rows[0];
+};
 
-    // 1️⃣ Get folders of this room
-    const [folders] = await pool.query(
-      "SELECT id FROM folders WHERE room_id = ?",
-      [roomId]
-    );
+/**
+ * FIND USER BY EMAIL
+ */
+export const findUserByEmail = async (email) => {
+  const db = await connectDB();
 
-    const folderIds = folders.map(f => f.id);
+  const result = await db.query(
+    `SELECT * FROM users WHERE email = $1 LIMIT 1`,
+    [email]
+  );
 
-    if (folderIds.length > 0) {
+  return result.rows[0];
+};
 
-      // 2️⃣ Get files inside these folders
-      const [files] = await pool.query(
-        `SELECT id FROM files WHERE folder_id IN (${folderIds.map(() => "?").join(",")})`,
-        folderIds
-      );
+/**
+ * FIND USER BY ID
+ */
+export const findUserById = async (id) => {
+  const db = await connectDB();
 
-      const fileIds = files.map(f => f.id);
+  const result = await db.query(
+    `
+    SELECT id, fullName, email, avatar, role
+    FROM users
+    WHERE id = $1
+    LIMIT 1
+    `,
+    [id]
+  );
 
-      if (fileIds.length > 0) {
-        // 3️⃣ Delete file contents
-        await pool.query(
-          `DELETE FROM file_contents WHERE file_id IN (${fileIds.map(() => "?").join(",")})`,
-          fileIds
-        );
-
-        // 4️⃣ Delete files
-        await pool.query(
-          `DELETE FROM files WHERE id IN (${fileIds.map(() => "?").join(",")})`,
-          fileIds
-        );
-      }
-
-      // 5️⃣ Delete folders
-      await pool.query(
-        `DELETE FROM folders WHERE id IN (${folderIds.map(() => "?").join(",")})`,
-        folderIds
-      );
-    }
-
-    // 6️⃣ Delete chat messages
-    await pool.query("DELETE FROM messages WHERE room_id = ?", [roomId]);
-
-    // 7️⃣ Delete members
-    await pool.query("DELETE FROM room_members WHERE room_id = ?", [roomId]);
-
-    // 8️⃣ Finally delete room
-    await pool.query("DELETE FROM rooms WHERE id = ?", [roomId]);
-
-    res.json({ message: "Room deleted successfully" });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
+  return result.rows[0];
 };
 
 
@@ -276,17 +256,19 @@ export const renameRoom = async (req, res) => {
 
     const pool = await connectDB();
 
-    const [rooms] = await pool.query(
-      "SELECT * FROM rooms WHERE id = ? AND created_by = ?",
+    const result = await pool.query(
+      "SELECT * FROM rooms WHERE id = $1 AND created_by = $2",
       [roomId, userId]
     );
+
+    const rooms = result.rows;
 
     if (rooms.length === 0) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
     await pool.query(
-      "UPDATE rooms SET room_name = ? WHERE id = ?",
+      "UPDATE rooms SET room_name = $1 WHERE id = $2",
       [roomName, roomId]
     );
 
@@ -305,30 +287,32 @@ export const exitRoom = async (req, res) => {
 
     const pool = await connectDB();
 
-    // check membership
-    const [members] = await pool.query(
-      "SELECT * FROM room_members WHERE room_id = ? AND user_id = ?",
+    const result = await pool.query(
+      "SELECT * FROM room_members WHERE room_id = $1 AND user_id = $2",
       [roomId, userId]
     );
+
+    const members = result.rows;
 
     if (members.length === 0) {
       return res.status(400).json({ message: "Not a member of this room" });
     }
 
-    // prevent creator from exiting (optional)
-    const [rooms] = await pool.query(
-      "SELECT * FROM rooms WHERE id = ? AND created_by = ?",
+    const roomResult = await pool.query(
+      "SELECT * FROM rooms WHERE id = $1 AND created_by = $2",
       [roomId, userId]
     );
 
+    const rooms = roomResult.rows;
+
     if (rooms.length > 0) {
       return res.status(400).json({
-        message: "Room owner cannot exit. You can delete the room instead.",
+        message: "Room owner cannot exit. Delete room instead.",
       });
     }
 
     await pool.query(
-      "DELETE FROM room_members WHERE room_id = ? AND user_id = ?",
+      "DELETE FROM room_members WHERE room_id = $1 AND user_id = $2",
       [roomId, userId]
     );
 
@@ -347,12 +331,14 @@ export const getRoomMembers = async (req, res) => {
 
     const pool = await connectDB();
 
-    const [room] = await pool.query(
-      "SELECT created_by FROM rooms WHERE id = ?",
+    const result = await pool.query(
+      "SELECT created_by FROM rooms WHERE id = $1",
       [roomId]
     );
 
-    if (!room.length) {
+    const room = result.rows;
+
+    if (room.length === 0) {
       return res.status(404).json({ message: "Room not found" });
     }
 
@@ -360,15 +346,15 @@ export const getRoomMembers = async (req, res) => {
       return res.status(403).json({ message: "Only owner can view members" });
     }
 
-    const [members] = await pool.query(
-      `SELECT u.id, u.fullName, u.email
+    const membersResult = await pool.query(
+      `SELECT u.id, u.full_name, u.email
        FROM room_members rm
        JOIN users u ON rm.user_id = u.id
-       WHERE rm.room_id = ?`,
+       WHERE rm.room_id = $1`,
       [roomId]
     );
 
-    res.json({ members });
+    res.json({ members: membersResult.rows });
 
   } catch (err) {
     console.error(err);
@@ -384,13 +370,14 @@ export const removeMember = async (req, res) => {
 
     const pool = await connectDB();
 
-    // check owner
-    const [room] = await pool.query(
-      "SELECT created_by FROM rooms WHERE id = ?",
+    const result = await pool.query(
+      "SELECT created_by FROM rooms WHERE id = $1",
       [roomId]
     );
 
-    if (!room.length) {
+    const room = result.rows;
+
+    if (room.length === 0) {
       return res.status(404).json({ message: "Room not found" });
     }
 
@@ -399,7 +386,7 @@ export const removeMember = async (req, res) => {
     }
 
     await pool.query(
-      "DELETE FROM room_members WHERE room_id = ? AND user_id = ?",
+      "DELETE FROM room_members WHERE room_id = $1 AND user_id = $2",
       [roomId, userId]
     );
 

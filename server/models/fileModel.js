@@ -2,7 +2,6 @@ import connectDB from "../config/db.js";
 
 /**
  * Create a new file
- * folderId = null → root file
  */
 export const createFileDB = async ({
   roomId,
@@ -12,13 +11,14 @@ export const createFileDB = async ({
 }) => {
   const pool = await connectDB();
 
-  const [result] = await pool.query(
+  const result = await pool.query(
     `INSERT INTO files (room_id, folder_id, name, language)
-     VALUES (?, ?, ?, ?)`,
+     VALUES ($1, $2, $3, $4)
+     RETURNING id`,
     [roomId, folderId, name, language]
   );
 
-  return result.insertId; // new file id
+  return result.rows[0].id;
 };
 
 /**
@@ -27,15 +27,15 @@ export const createFileDB = async ({
 export const getFilesByRoomDB = async (roomId) => {
   const pool = await connectDB();
 
-  const [rows] = await pool.query(
+  const result = await pool.query(
     `SELECT id, room_id, folder_id, name, language, created_at
      FROM files
-     WHERE room_id = ?
+     WHERE room_id = $1
      ORDER BY created_at ASC`,
     [roomId]
   );
 
-  return rows;
+  return result.rows;
 };
 
 /**
@@ -44,15 +44,15 @@ export const getFilesByRoomDB = async (roomId) => {
 export const getFileByIdDB = async (fileId) => {
   const pool = await connectDB();
 
-  const [rows] = await pool.query(
+  const result = await pool.query(
     `SELECT id, room_id, folder_id, name, language
      FROM files
-     WHERE id = ?
+     WHERE id = $1
      LIMIT 1`,
     [fileId]
   );
 
-  return rows[0]; // undefined if not found
+  return result.rows[0];
 };
 
 /**
@@ -63,29 +63,29 @@ export const renameFileDB = async (fileId, newName) => {
 
   await pool.query(
     `UPDATE files
-     SET name = ?
-     WHERE id = ?`,
+     SET name = $1
+     WHERE id = $2`,
     [newName, fileId]
   );
 };
 
 /**
- * Delete file (and its content)
+ * Delete file
  */
 export const deleteFileDB = async (fileId) => {
   const pool = await connectDB();
 
-  // pehle content delete
+  // delete content
   await pool.query(
     `DELETE FROM file_contents
-     WHERE file_id = ?`,
+     WHERE file_id = $1`,
     [fileId]
   );
 
-  // phir file delete
+  // delete file
   await pool.query(
     `DELETE FROM files
-     WHERE id = ?`,
+     WHERE id = $1`,
     [fileId]
   );
 };
@@ -98,38 +98,40 @@ export const renameFolderDB = async (folderId, newName) => {
 
   await pool.query(
     `UPDATE folders
-     SET name = ?
-     WHERE id = ?`,
+     SET name = $1
+     WHERE id = $2`,
     [newName, folderId]
   );
 };
 
 /**
- * Delete folder and all its subfolders + files
+ * Delete folder recursively
  */
 export const deleteFolderRecursiveDB = async (folderId) => {
   const pool = await connectDB();
 
-  // 🔥 delete files inside this folder
+  // delete files
   await pool.query(
-    `DELETE FROM files WHERE folder_id = ?`,
+    `DELETE FROM files WHERE folder_id = $1`,
     [folderId]
   );
 
-  // 🔥 get child folders
-  const [childFolders] = await pool.query(
-    `SELECT id FROM folders WHERE parent_id = ?`,
+  // get child folders
+  const result = await pool.query(
+    `SELECT id FROM folders WHERE parent_id = $1`,
     [folderId]
   );
 
-  // 🔁 recursive delete
+  const childFolders = result.rows;
+
+  // recursive delete
   for (const child of childFolders) {
     await deleteFolderRecursiveDB(child.id);
   }
 
-  // 🔥 delete the folder itself
+  // delete folder
   await pool.query(
-    `DELETE FROM folders WHERE id = ?`,
+    `DELETE FROM folders WHERE id = $1`,
     [folderId]
   );
 };
