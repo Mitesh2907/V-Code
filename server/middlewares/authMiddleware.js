@@ -46,12 +46,12 @@ const authMiddleware = async (req, res, next) => {
     next();
 
   } catch (error) {
-    console.error("❌ AUTH ERROR:", error.message);
+  console.error("❌ AUTH ERROR FULL:", error);  // 🔥 पूरा error दिखेगा
 
-    return res.status(401).json({
-      message: "Token invalid",
-    });
-  }
+  return res.status(401).json({
+    message: error.message,   // 🔥 actual reason frontend पर भी आएगा
+  });
+}
 };
 
 export default authMiddleware;
