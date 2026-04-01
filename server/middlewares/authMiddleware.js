@@ -21,7 +21,7 @@ const authMiddleware = async (req, res, next) => {
 
     // 🔥 5. Fetch user (PostgreSQL syntax FIXED)
     const result = await db.query(
-      "SELECT id, fullName, email, role, status FROM users WHERE id = $1",
+      'SELECT id, "fullName", email, role, status FROM users WHERE id = $1',
       [decoded.userId]
     );
 
@@ -46,12 +46,12 @@ const authMiddleware = async (req, res, next) => {
     next();
 
   } catch (error) {
-  console.error("❌ AUTH ERROR FULL:", error);  // 🔥 पूरा error दिखेगा
+    console.error("❌ AUTH ERROR FULL:", error);  // 🔥 पूरा error दिखेगा
 
-  return res.status(401).json({
-    message: error.message,   // 🔥 actual reason frontend पर भी आएगा
-  });
-}
+    return res.status(401).json({
+      message: error.message,   // 🔥 actual reason frontend पर भी आएगा
+    });
+  }
 };
 
 export default authMiddleware;
