@@ -27,25 +27,9 @@ const app = express();
 
 /* ================= CORS ================= */
 
-const allowedOrigin =
-  process.env.NODE_ENV === "production"
-    ? process.env.FRONTEND_URL
-    : "http://localhost:3000";
-
 app.use(
   cors({
-    origin: function (origin, callback) {
-      const allowed = [
-        process.env.FRONTEND_URL,
-        "http://localhost:3000"
-      ];
-
-      if (!origin || allowed.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("CORS not allowed"));
-      }
-    },
+    origin: true,
     credentials: true,
   })
 );
@@ -83,7 +67,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL,
+    origin: true,
     credentials: true,
   },
 });
