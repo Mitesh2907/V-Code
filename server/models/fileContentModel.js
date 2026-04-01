@@ -4,11 +4,11 @@ import connectDB from "../config/db.js";
  * Create empty content when file is created
  */
 export const createFileContentDB = async (fileId) => {
-  const pool = await connectDB();
+  const db = await connectDB();
 
-  await pool.query(
+  await db.query(
     `INSERT INTO file_contents (file_id, content)
-     VALUES (?, ?)`,
+     VALUES ($1, $2)`,
     [fileId, ""]
   );
 };
@@ -17,12 +17,12 @@ export const createFileContentDB = async (fileId) => {
  * Update / Save file content
  */
 export const saveFileContentDB = async (fileId, content) => {
-  const pool = await connectDB();
+  const db = await connectDB();
 
-  await pool.query(
+  await db.query(
     `UPDATE file_contents
-     SET content = ?
-     WHERE file_id = ?`,
+     SET content = $1
+     WHERE file_id = $2`,
     [content, fileId]
   );
 };
@@ -31,15 +31,15 @@ export const saveFileContentDB = async (fileId, content) => {
  * Get file content by file ID
  */
 export const getFileContentByFileIdDB = async (fileId) => {
-  const pool = await connectDB();
+  const db = await connectDB();
 
-  const [rows] = await pool.query(
+  const result = await db.query(
     `SELECT content, updated_at
      FROM file_contents
-     WHERE file_id = ?
+     WHERE file_id = $1
      LIMIT 1`,
     [fileId]
   );
 
-  return rows[0]; // { content, updated_at }
+  return result.rows[0];
 };
