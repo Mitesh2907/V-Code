@@ -35,21 +35,23 @@ export const registerUser = async (req, res) => {
 
     const pool = await connectDB();
 
-    // ✅ ADMIN CHECK (PostgreSQL FIX)
+    // ✅ ADMIN CHECK
     const adminRes = await pool.query(
-      "SELECT COUNT(*) as adminCount FROM users WHERE role = 'admin'"
+      `SELECT COUNT(*) AS "adminCount" FROM users WHERE role = 'admin'`
     );
 
-    const adminCount = parseInt(adminRes.rows[0].admincount);
+    const adminCount = parseInt(adminRes.rows[0].adminCount);
 
     let role = adminCount === 0 ? "admin" : "user";
 
     // hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // ✅ INSERT USER (PostgreSQL FIX)
+    // ✅ INSERT USER (FIXED)
     const insertRes = await pool.query(
-      "INSERT INTO users (full_name, email, password, role) VALUES ($1, $2, $3, $4) RETURNING id",
+      `INSERT INTO users ("fullName", email, password, role)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
       [fullName, email, hashedPassword, role]
     );
 
@@ -113,14 +115,6 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    const pool = await connectDB();
-
-    // ✅ UPDATE last login (PostgreSQL FIX)
-    // await pool.query(
-    //   "UPDATE users SET last_login = NOW() WHERE id = $1",
-    //   [user.id]
-    // );
-
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       process.env.JWT_SECRET,
@@ -132,7 +126,7 @@ export const loginUser = async (req, res) => {
       token,
       user: {
         id: user.id,
-        fullName: user.full_name,
+        fullName: user.fullName,
         email: user.email,
         avatar: user.avatar,
         role: user.role,
@@ -159,7 +153,7 @@ export const getCurrentUser = async (req, res) => {
     res.status(200).json({
       user: {
         id: user.id,
-        fullName: user.fullname || user.full_name,
+        fullName: user.fullName,
         email: user.email,
         avatar: user.avatar,
         role: user.role,
@@ -190,7 +184,7 @@ export const changePassword = async (req, res) => {
     const pool = await connectDB();
 
     const result = await pool.query(
-      "SELECT id, password FROM users WHERE id = $1",
+      `SELECT id, password FROM users WHERE id = $1`,
       [userId]
     );
 
@@ -215,7 +209,7 @@ export const changePassword = async (req, res) => {
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await pool.query(
-      "UPDATE users SET password = $1 WHERE id = $2",
+      `UPDATE users SET password = $1 WHERE id = $2`,
       [hashedPassword, userId]
     );
 
@@ -251,7 +245,7 @@ export const updateProfile = async (req, res) => {
     const pool = await connectDB();
 
     await pool.query(
-      "UPDATE users SET full_name = $1 WHERE id = $2",
+      `UPDATE users SET "fullName" = $1 WHERE id = $2`,
       [name, userId]
     );
 
