@@ -12,15 +12,16 @@ export const getAllUsers = async (req, res) => {
     const offset = (page - 1) * limit;
 
     const search = req.query.search || "";
+    const searchQuery = `%${search}%`;
 
-    // ✅ PostgreSQL FIX
+    // ✅ Optimized PostgreSQL Query
     const result = await db.query(
       `SELECT id, "fullName", email, role, status, created_at
        FROM users
-       WHERE "fullName" ILIKE $1 OR email ILIKE $2
+       WHERE ($1 = '' OR "fullName" ILIKE $2 OR email ILIKE $2)
        ORDER BY created_at DESC
        LIMIT $3 OFFSET $4`,
-      [`%${search}%`, `%${search}%`, limit, offset]
+      [search, searchQuery, limit, offset]
     );
 
     const users = result.rows;
@@ -28,8 +29,8 @@ export const getAllUsers = async (req, res) => {
     const countResult = await db.query(
       `SELECT COUNT(*) as total 
        FROM users
-       WHERE "fullName" ILIKE $1 OR email ILIKE $2`,
-      [`%${search}%`, `%${search}%`]
+       WHERE ($1 = '' OR "fullName" ILIKE $2 OR email ILIKE $2)`,
+      [search, searchQuery]
     );
 
     const total = parseInt(countResult.rows[0].total);
@@ -49,12 +50,12 @@ export const getAllUsers = async (req, res) => {
 
 
 /* ===============================
-   BLOCK USER
+   BLOCK / UNBLOCK USER
 ================================ */
 export const toggleBlockUser = async (req, res) => {
   try {
     const db = await connectDB();
-    const { id } = req.params;
+    const id = parseInt(req.params.id);
 
     const result = await db.query(
       "SELECT role, status FROM users WHERE id = $1",
@@ -83,7 +84,9 @@ export const toggleBlockUser = async (req, res) => {
     );
 
     res.json({
-      message: `User ${newStatus === "blocked" ? "blocked" : "unblocked"} successfully`,
+      message: `User ${
+        newStatus === "blocked" ? "blocked" : "unblocked"
+      } successfully`,
     });
 
   } catch (error) {
@@ -99,7 +102,7 @@ export const toggleBlockUser = async (req, res) => {
 export const deleteUser = async (req, res) => {
   try {
     const db = await connectDB();
-    const { id } = req.params;
+    const id = parseInt(req.params.id);
 
     const result = await db.query(
       "SELECT role FROM users WHERE id = $1",
