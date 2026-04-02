@@ -12,14 +12,15 @@ export const adminLogin = async (req, res) => {
       });
     }
 
-    const pool = await connectDB();
+    const db = await connectDB();
 
-    const [rows] = await pool.query(
-      "SELECT * FROM users WHERE email = ? LIMIT 1",
+    // ✅ PostgreSQL FIX
+    const result = await db.query(
+      "SELECT * FROM users WHERE email = $1 LIMIT 1",
       [email]
     );
 
-    const user = rows[0];
+    const user = result.rows[0];
 
     if (!user) {
       return res.status(400).json({
@@ -35,7 +36,7 @@ export const adminLogin = async (req, res) => {
       });
     }
 
-    // 🔥 MOST IMPORTANT CHECK
+    // 🔥 ADMIN CHECK
     if (user.role !== "admin") {
       return res.status(403).json({
         message: "Access denied. Not an admin.",

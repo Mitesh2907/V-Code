@@ -9,14 +9,15 @@ export const changeAdminPassword = async (req, res) => {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    const pool = await connectDB();
+    const db = await connectDB();
 
-    const [rows] = await pool.query(
-      "SELECT password FROM users WHERE id = ? AND role = 'admin'",
+    // ✅ PostgreSQL FIX
+    const result = await db.query(
+      "SELECT password FROM users WHERE id = $1 AND role = 'admin'",
       [req.userId]
     );
 
-    const admin = rows[0];
+    const admin = result.rows[0];
 
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
@@ -30,8 +31,8 @@ export const changeAdminPassword = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    await pool.query(
-      "UPDATE users SET password = ? WHERE id = ?",
+    await db.query(
+      "UPDATE users SET password = $1 WHERE id = $2",
       [hashedPassword, req.userId]
     );
 

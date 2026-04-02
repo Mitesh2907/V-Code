@@ -2,14 +2,16 @@ import connectDB from "../../config/db.js";
 
 export const getAdminProfile = async (req, res) => {
   try {
-    const pool = await connectDB();
+    const db = await connectDB();
 
-    const [rows] = await pool.query(
-      "SELECT id, fullName, email, role FROM users WHERE id = ? AND role = 'admin'",
+    const result = await db.query(
+      `SELECT id, "fullName", email, role 
+       FROM users 
+       WHERE id = $1 AND role = 'admin'`,
       [req.userId]
     );
 
-    const admin = rows[0];
+    const admin = result.rows[0];
 
     if (!admin) {
       return res.status(404).json({ message: "Admin not found" });
@@ -27,10 +29,12 @@ export const updateAdminProfile = async (req, res) => {
   try {
     const { fullName } = req.body;
 
-    const pool = await connectDB();
+    const db = await connectDB();
 
-    await pool.query(
-      "UPDATE users SET fullName = ? WHERE id = ? AND role = 'admin'",
+    await db.query(
+      `UPDATE users 
+       SET "fullName" = $1 
+       WHERE id = $2 AND role = 'admin'`,
       [fullName, req.userId]
     );
 

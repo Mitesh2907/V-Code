@@ -1,12 +1,11 @@
 import connectDB from "../../config/db.js";
 
-
 /* ===============================
    GET ALL ROOMS
 ================================ */
 export const getAllRooms = async (req, res) => {
   try {
-    const pool = await connectDB();
+    const db = await connectDB();
 
     const page = parseInt(req.query.page) || 1;
     const limit = 6;
@@ -17,19 +16,22 @@ export const getAllRooms = async (req, res) => {
 
     let whereConditions = [];
     let queryParams = [];
+    let paramIndex = 1;
 
     // 🔍 Search filter
     if (search) {
       whereConditions.push(
-        "(r.room_name LIKE ? OR u.fullName LIKE ?)"
+        `(r.room_name ILIKE $${paramIndex} OR u."fullName" ILIKE $${paramIndex + 1})`
       );
       queryParams.push(`%${search}%`, `%${search}%`);
+      paramIndex += 2;
     }
 
     // 🔥 Status filter
     if (status !== "all") {
-      whereConditions.push("r.status = ?");
+      whereConditions.push(`r.status = $${paramIndex}`);
       queryParams.push(status);
+      paramIndex++;
     }
 
     const whereClause =
@@ -38,7 +40,7 @@ export const getAllRooms = async (req, res) => {
         : "";
 
     // Main query
-    const [rooms] = await pool.query(
+    const result = await db.query(
       `
       SELECT 
         r.id,
@@ -46,21 +48,23 @@ export const getAllRooms = async (req, res) => {
         r.room_name,
         r.status,
         r.created_at,
-        u.fullName AS creator_name,
+        u."fullName" AS creator_name,
         COUNT(rm.user_id) AS members
       FROM rooms r
       LEFT JOIN users u ON r.created_by = u.id
       LEFT JOIN room_members rm ON rm.room_id = r.id
       ${whereClause}
-      GROUP BY r.id
+      GROUP BY r.id, u."fullName"
       ORDER BY r.created_at DESC
-      LIMIT ? OFFSET ?
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
       `,
       [...queryParams, limit, offset]
     );
 
+    const rooms = result.rows;
+
     // Count query
-    const [[{ total }]] = await pool.query(
+    const countResult = await db.query(
       `
       SELECT COUNT(*) as total
       FROM rooms r
@@ -69,6 +73,8 @@ export const getAllRooms = async (req, res) => {
       `,
       queryParams
     );
+
+    const total = parseInt(countResult.rows[0].total);
 
     res.json({
       rooms,
@@ -84,29 +90,28 @@ export const getAllRooms = async (req, res) => {
 };
 
 
-
 /* ==========================================
-   TOGGLE ROOM STATUS (active ↔ closed)
+   TOGGLE ROOM STATUS
 ========================================== */
 export const toggleRoomStatus = async (req, res) => {
   try {
-    const pool = await connectDB();
+    const db = await connectDB();
     const { id } = req.params;
 
-    const [rooms] = await pool.query(
-      "SELECT status FROM rooms WHERE id = ?",
+    const result = await db.query(
+      "SELECT status FROM rooms WHERE id = $1",
       [id]
     );
 
-    if (!rooms.length) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: "Room not found" });
     }
 
-    const currentStatus = rooms[0].status;
+    const currentStatus = result.rows[0].status;
     const newStatus = currentStatus === "active" ? "closed" : "active";
 
-    await pool.query(
-      "UPDATE rooms SET status = ? WHERE id = ?",
+    await db.query(
+      "UPDATE rooms SET status = $1 WHERE id = $2",
       [newStatus, id]
     );
 
@@ -127,10 +132,10 @@ export const toggleRoomStatus = async (req, res) => {
 ========================================== */
 export const deleteRoom = async (req, res) => {
   try {
-    const pool = await connectDB();
+    const db = await connectDB();
     const { id } = req.params;
 
-    await pool.query("DELETE FROM rooms WHERE id = ?", [id]);
+    await db.query("DELETE FROM rooms WHERE id = $1", [id]);
 
     res.json({ message: "Room deleted successfully" });
 

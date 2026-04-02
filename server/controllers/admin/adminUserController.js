@@ -5,7 +5,7 @@ import connectDB from "../../config/db.js";
 ================================ */
 export const getAllUsers = async (req, res) => {
   try {
-    const pool = await connectDB();
+    const db = await connectDB();
 
     const page = parseInt(req.query.page) || 1;
     const limit = 10;
@@ -13,20 +13,26 @@ export const getAllUsers = async (req, res) => {
 
     const search = req.query.search || "";
 
-    const [users] = await pool.query(
-      `SELECT id, fullName, email, role, status, created_at
+    // ✅ PostgreSQL FIX
+    const result = await db.query(
+      `SELECT id, "fullName", email, role, status, created_at
        FROM users
-       WHERE fullName LIKE ? OR email LIKE ?
+       WHERE "fullName" ILIKE $1 OR email ILIKE $2
        ORDER BY created_at DESC
-       LIMIT ? OFFSET ?`,
+       LIMIT $3 OFFSET $4`,
       [`%${search}%`, `%${search}%`, limit, offset]
     );
 
-    const [[{ total }]] = await pool.query(
-      `SELECT COUNT(*) as total FROM users
-       WHERE fullName LIKE ? OR email LIKE ?`,
+    const users = result.rows;
+
+    const countResult = await db.query(
+      `SELECT COUNT(*) as total 
+       FROM users
+       WHERE "fullName" ILIKE $1 OR email ILIKE $2`,
       [`%${search}%`, `%${search}%`]
     );
+
+    const total = parseInt(countResult.rows[0].total);
 
     res.json({
       users,
@@ -47,19 +53,19 @@ export const getAllUsers = async (req, res) => {
 ================================ */
 export const toggleBlockUser = async (req, res) => {
   try {
-    const pool = await connectDB();
+    const db = await connectDB();
     const { id } = req.params;
 
-    const [rows] = await pool.query(
-      "SELECT role, status FROM users WHERE id = ?",
+    const result = await db.query(
+      "SELECT role, status FROM users WHERE id = $1",
       [id]
     );
 
-    if (!rows.length) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const user = rows[0];
+    const user = result.rows[0];
 
     // ❌ Prevent blocking admin
     if (user.role === "admin") {
@@ -71,8 +77,8 @@ export const toggleBlockUser = async (req, res) => {
     const newStatus =
       user.status === "blocked" ? "active" : "blocked";
 
-    await pool.query(
-      "UPDATE users SET status = ? WHERE id = ?",
+    await db.query(
+      "UPDATE users SET status = $1 WHERE id = $2",
       [newStatus, id]
     );
 
@@ -87,33 +93,31 @@ export const toggleBlockUser = async (req, res) => {
 };
 
 
-
-
 /* ===============================
    DELETE USER
 ================================ */
 export const deleteUser = async (req, res) => {
   try {
-    const pool = await connectDB();
+    const db = await connectDB();
     const { id } = req.params;
 
-    const [rows] = await pool.query(
-      "SELECT role FROM users WHERE id = ?",
+    const result = await db.query(
+      "SELECT role FROM users WHERE id = $1",
       [id]
     );
 
-    if (!rows.length) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: "User not found" });
     }
 
     // ❌ Prevent deleting admin
-    if (rows[0].role === "admin") {
+    if (result.rows[0].role === "admin") {
       return res.status(403).json({
         message: "Admin cannot be deleted",
       });
     }
 
-    await pool.query("DELETE FROM users WHERE id = ?", [id]);
+    await db.query("DELETE FROM users WHERE id = $1", [id]);
 
     res.json({ message: "User deleted successfully" });
 
@@ -122,4 +126,3 @@ export const deleteUser = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
