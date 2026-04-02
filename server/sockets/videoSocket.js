@@ -6,9 +6,6 @@ const videoSocket = (io, socket) => {
   socket.on("video-join-room", ({ roomId }) => {
     socket.join(roomId);
 
-    console.log(`User ${socket.id} joined video room ${roomId}`);
-
-    // 🔥 Notify others
     socket.to(roomId).emit("video-user-joined", {
       socketId: socket.id,
     });
@@ -18,32 +15,30 @@ const videoSocket = (io, socket) => {
   socket.on("video-leave-room", ({ roomId }) => {
     socket.leave(roomId);
 
-    console.log(`User ${socket.id} left video room ${roomId}`);
-
     socket.to(roomId).emit("video-user-left", {
       socketId: socket.id,
     });
   });
 
   /* ---------------- OFFER ---------------- */
-  socket.on("video-offer", ({ roomId, offer }) => {
-    socket.to(roomId).emit("video-offer", {
+  socket.on("video-offer", ({ offer, target }) => {
+    io.to(target).emit("video-offer", {
       offer,
       sender: socket.id,
     });
   });
 
   /* ---------------- ANSWER ---------------- */
-  socket.on("video-answer", ({ roomId, answer }) => {
-    socket.to(roomId).emit("video-answer", {
+  socket.on("video-answer", ({ answer, target }) => {
+    io.to(target).emit("video-answer", {
       answer,
       sender: socket.id,
     });
   });
 
-  /* ---------------- ICE CANDIDATE ---------------- */
-  socket.on("video-ice-candidate", ({ roomId, candidate }) => {
-    socket.to(roomId).emit("video-ice-candidate", {
+  /* ---------------- ICE ---------------- */
+  socket.on("video-ice-candidate", ({ candidate, target }) => {
+    io.to(target).emit("video-ice-candidate", {
       candidate,
       sender: socket.id,
     });
@@ -51,7 +46,9 @@ const videoSocket = (io, socket) => {
 
   /* ---------------- DISCONNECT ---------------- */
   socket.on("disconnect", () => {
-    console.log("🎥 Video socket disconnected:", socket.id);
+    socket.broadcast.emit("video-user-left", {
+      socketId: socket.id,
+    });
   });
 
 };
