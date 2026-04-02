@@ -70,12 +70,12 @@ export const joinRoom = async (req, res) => {
     }
 
     // ❌ ROOM CLOSED CHECK
-if (room.status === "closed") {
-  return res.status(403).json({
-    success: false,
-    message: "This room has been closed by admin",
-  });
-}
+    if (room.status === "closed") {
+      return res.status(403).json({
+        success: false,
+        message: "This room has been closed by admin",
+      });
+    }
 
 
     const isMatch = await bcrypt.compare(password, room.password);
@@ -195,70 +195,25 @@ export const deleteRoom = async (req, res) => {
     const { roomId } = req.params;
     const userId = req.userId;
 
-    const pool = await connectDB();
+    const db = await connectDB();
 
-    // ✅ Check ownership
-    const [rooms] = await pool.query(
-      "SELECT * FROM rooms WHERE id = ? AND created_by = ?",
+    const result = await db.query(
+      "SELECT * FROM rooms WHERE id = $1 AND created_by = $2",
       [roomId, userId]
     );
 
-    if (rooms.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
-    // 1️⃣ Get folders of this room
-    const [folders] = await pool.query(
-      "SELECT id FROM folders WHERE room_id = ?",
-      [roomId]
-    );
-
-    const folderIds = folders.map(f => f.id);
-
-    if (folderIds.length > 0) {
-
-      // 2️⃣ Get files inside these folders
-      const [files] = await pool.query(
-        `SELECT id FROM files WHERE folder_id IN (${folderIds.map(() => "?").join(",")})`,
-        folderIds
-      );
-
-      const fileIds = files.map(f => f.id);
-
-      if (fileIds.length > 0) {
-        // 3️⃣ Delete file contents
-        await pool.query(
-          `DELETE FROM file_contents WHERE file_id IN (${fileIds.map(() => "?").join(",")})`,
-          fileIds
-        );
-
-        // 4️⃣ Delete files
-        await pool.query(
-          `DELETE FROM files WHERE id IN (${fileIds.map(() => "?").join(",")})`,
-          fileIds
-        );
-      }
-
-      // 5️⃣ Delete folders
-      await pool.query(
-        `DELETE FROM folders WHERE id IN (${folderIds.map(() => "?").join(",")})`,
-        folderIds
-      );
-    }
-
-    // 6️⃣ Delete chat messages
-    await pool.query("DELETE FROM messages WHERE room_id = ?", [roomId]);
-
-    // 7️⃣ Delete members
-    await pool.query("DELETE FROM room_members WHERE room_id = ?", [roomId]);
-
-    // 8️⃣ Finally delete room
-    await pool.query("DELETE FROM rooms WHERE id = ?", [roomId]);
+    await db.query("DELETE FROM messages WHERE room_id = $1", [roomId]);
+    await db.query("DELETE FROM room_members WHERE room_id = $1", [roomId]);
+    await db.query("DELETE FROM rooms WHERE id = $1", [roomId]);
 
     res.json({ message: "Room deleted successfully" });
 
   } catch (err) {
-    console.error(err);
+    console.error("Delete Room Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -274,27 +229,27 @@ export const renameRoom = async (req, res) => {
       return res.status(400).json({ message: "Room name required" });
     }
 
-    const pool = await connectDB();
+    const db = await connectDB();
 
-    const [rooms] = await pool.query(
-      "SELECT * FROM rooms WHERE id = ? AND created_by = ?",
+    const result = await db.query(
+      "SELECT * FROM rooms WHERE id = $1 AND created_by = $2",
       [roomId, userId]
     );
 
-    if (rooms.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(403).json({ message: "Not authorized" });
     }
 
-    await pool.query(
-      "UPDATE rooms SET room_name = ? WHERE id = ?",
+    await db.query(
+      "UPDATE rooms SET room_name = $1 WHERE id = $2",
       [roomName, roomId]
     );
 
     res.json({ message: "Room renamed successfully" });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    console.error("Rename Error:", err);
+    res.status(500).json({ message: "Rename failed" });
   }
 };
 
@@ -303,39 +258,26 @@ export const exitRoom = async (req, res) => {
     const { roomId } = req.params;
     const userId = req.userId;
 
-    const pool = await connectDB();
+    const db = await connectDB();
 
-    // check membership
-    const [members] = await pool.query(
-      "SELECT * FROM room_members WHERE room_id = ? AND user_id = ?",
+    const result = await db.query(
+      "SELECT * FROM room_members WHERE room_id = $1 AND user_id = $2",
       [roomId, userId]
     );
 
-    if (members.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(400).json({ message: "Not a member of this room" });
     }
 
-    // prevent creator from exiting (optional)
-    const [rooms] = await pool.query(
-      "SELECT * FROM rooms WHERE id = ? AND created_by = ?",
-      [roomId, userId]
-    );
-
-    if (rooms.length > 0) {
-      return res.status(400).json({
-        message: "Room owner cannot exit. You can delete the room instead.",
-      });
-    }
-
-    await pool.query(
-      "DELETE FROM room_members WHERE room_id = ? AND user_id = ?",
+    await db.query(
+      "DELETE FROM room_members WHERE room_id = $1 AND user_id = $2",
       [roomId, userId]
     );
 
     res.json({ message: "Exited room successfully" });
 
   } catch (err) {
-    console.error(err);
+    console.error("Exit Room Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -345,33 +287,33 @@ export const getRoomMembers = async (req, res) => {
     const { roomId } = req.params;
     const userId = req.userId;
 
-    const pool = await connectDB();
+    const db = await connectDB();
 
-    const [room] = await pool.query(
-      "SELECT created_by FROM rooms WHERE id = ?",
+    const roomResult = await db.query(
+      "SELECT created_by FROM rooms WHERE id = $1",
       [roomId]
     );
 
-    if (!room.length) {
+    if (roomResult.rows.length === 0) {
       return res.status(404).json({ message: "Room not found" });
     }
 
-    if (room[0].created_by !== userId) {
+    if (roomResult.rows[0].created_by !== userId) {
       return res.status(403).json({ message: "Only owner can view members" });
     }
 
-    const [members] = await pool.query(
-      `SELECT u.id, u.fullName, u.email
-       FROM room_members rm
-       JOIN users u ON rm.user_id = u.id
-       WHERE rm.room_id = ?`,
+    const membersResult = await db.query(
+      `SELECT u.id, u."fullName", u.email
+   FROM room_members rm
+   JOIN users u ON rm.user_id = u.id
+   WHERE rm.room_id = $1`,
       [roomId]
     );
 
-    res.json({ members });
+    res.json({ members: membersResult.rows });
 
   } catch (err) {
-    console.error(err);
+    console.error("Get Members Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
@@ -382,31 +324,30 @@ export const removeMember = async (req, res) => {
     const { roomId, userId } = req.params;
     const ownerId = req.userId;
 
-    const pool = await connectDB();
+    const db = await connectDB();
 
-    // check owner
-    const [room] = await pool.query(
-      "SELECT created_by FROM rooms WHERE id = ?",
+    const roomResult = await db.query(
+      "SELECT created_by FROM rooms WHERE id = $1",
       [roomId]
     );
 
-    if (!room.length) {
+    if (roomResult.rows.length === 0) {
       return res.status(404).json({ message: "Room not found" });
     }
 
-    if (room[0].created_by !== ownerId) {
+    if (roomResult.rows[0].created_by !== ownerId) {
       return res.status(403).json({ message: "Only owner can remove members" });
     }
 
-    await pool.query(
-      "DELETE FROM room_members WHERE room_id = ? AND user_id = ?",
+    await db.query(
+      "DELETE FROM room_members WHERE room_id = $1 AND user_id = $2",
       [roomId, userId]
     );
 
     res.json({ message: "Member removed successfully" });
 
   } catch (err) {
-    console.error(err);
+    console.error("Remove Member Error:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
