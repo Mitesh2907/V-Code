@@ -6,7 +6,7 @@ import {
   FolderOpen, FileCode, Video, MessageSquare,
   Trash2
 } from 'lucide-react';
-
+import videoSocket from "../../configs/videoSocket";
 import VideoCallPanel from '../../components/video/VideoCallPanel';
 import ChatPanel from '../../components/chat/ChatPanel';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -32,6 +32,7 @@ const EditorPage = () => {
   const [fileContents, setFileContents] = useState({});
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
   const [showExplorer, setShowExplorer] = useState(true);
+  const [autoJoin, setAutoJoin] = useState(false);
   const [code, setCode] = useState(`// Welcome to V-Code Collaborative Editor
 // Create files and folders using the + buttons
 // Your changes sync in real-time with your team
@@ -209,14 +210,14 @@ console.log(result);`);
   };
 
   useEffect(() => {
-  if (!roomId) return;
+    if (!roomId) return;
 
-  api.get(`/chat/unread/${roomId}`)
-    .then(({ data }) => {
-      setUnreadCount(data.unreadCount);
-    });
+    api.get(`/chat/unread/${roomId}`)
+      .then(({ data }) => {
+        setUnreadCount(data.unreadCount);
+      });
 
-}, [roomId, showChat]);
+  }, [roomId, showChat]);
 
 
 
@@ -235,7 +236,19 @@ console.log(result);`);
     fetchUnread();
   }, [roomId]);
 
+  // 👇 YAHAN ADD KARNA HAI
+  useEffect(() => {
+    videoSocket.on("incoming-call", ({ senderId }) => {
+      if (senderId === videoSocket.id) return; // 👈 self ignore
 
+      setShowVideoCall(true);
+      setAutoJoin(false);
+    });
+
+    return () => {
+      videoSocket.off("incoming-call");
+    };
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -698,17 +711,17 @@ console.log(result);`);
 
   return (
     <div
-  className={`flex flex-col transition-colors duration-300
+      className={`flex flex-col transition-colors duration-300
     ${theme === "dark"
-      ? "bg-gray-900 text-gray-100"
-      : "bg-gray-100 text-gray-900"
-    }
+          ? "bg-gray-900 text-gray-100"
+          : "bg-gray-100 text-gray-900"
+        }
     ${isFullscreen
-      ? "fixed inset-0 z-50 h-screen"
-      : "pt-16 h-[calc(100vh-4rem)]"
-    }
+          ? "fixed inset-0 z-50 h-screen"
+          : "pt-16 h-[calc(100vh-4rem)]"
+        }
   `}
->
+    >
 
 
       {/* Top Bar (compact, VS Code like) */}
@@ -747,7 +760,20 @@ console.log(result);`);
                 </button>
 
                 {/* Video + Chat */}
-                <Button variant="ghost" size="sm" onClick={() => setShowVideoCall(true)} icon={Video} />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowVideoCall(true);
+                    setAutoJoin(true);
+
+                    videoSocket.emit("incoming-call", {
+                      roomId,
+                      senderId: videoSocket.id
+                    });
+                  }}
+                  icon={Video}
+                />
                 <div className="relative">
                   <Button
                     variant="ghost"
@@ -800,14 +826,20 @@ console.log(result);`);
 
       {/* Video Call Panel */}
       {showVideoCall && (
-        <VideoCallPanel onClose={() => setShowVideoCall(false)} />
+        <VideoCallPanel
+          onClose={() => {
+            setShowVideoCall(false);
+            setAutoJoin(false); // reset
+          }}
+          autoJoin={autoJoin}
+        />
       )}
       {/* Chat Panel */}
       {showChat && (
         <ChatPanel
           onClose={() => {
             setShowChat(false);
-            fetchUnread(); 
+            fetchUnread();
           }}
         />
       )}
