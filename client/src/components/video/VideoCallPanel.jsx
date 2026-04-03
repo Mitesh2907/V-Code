@@ -30,6 +30,11 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
 
   /* ---------------- CREATE PEER ---------------- */
   const createPeer = useCallback((socketId) => {
+    // 🔥 duplicate peer avoid
+    if (peersRef.current[socketId]) {
+      return peersRef.current[socketId];
+    }
+
     const peer = new RTCPeerConnection(servers);
 
     peer.onicecandidate = (event) => {
@@ -68,12 +73,12 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
     videoSocket.off("video-ice-candidate");
     videoSocket.off("video-user-left");
 
-    /* 🔥 EXISTING USERS FIX */
+    /* 🔥 EXISTING USERS */
     videoSocket.on("existing-users", async (users) => {
       console.log("Existing users:", users);
 
-      users.forEach(async (id) => {
-        if (!streamRef.current) return;
+      for (const id of users) {
+        if (peersRef.current[id]) continue;
 
         const peer = createPeer(id);
 
@@ -84,13 +89,15 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
           offer,
           to: id,
         });
-      });
+      }
     });
 
     /* 🔥 NEW USER JOINED */
     videoSocket.on("video-user-joined", ({ socketId }) => {
       setTimeout(async () => {
         if (!streamRef.current) return;
+
+        if (peersRef.current[socketId]) return;
 
         const peer = createPeer(socketId);
 
@@ -106,7 +113,7 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
 
     /* 🔥 RECEIVE OFFER */
     videoSocket.on("video-offer", async ({ offer, sender }) => {
-      const peer = createPeer(sender);
+      const peer = peersRef.current[sender] || createPeer(sender);
 
       await peer.setRemoteDescription(new RTCSessionDescription(offer));
 
@@ -172,7 +179,7 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
     }
   }, [autoJoin, callState]);
 
-  /* ---------------- JOIN CALL ---------------- */
+  /* ---------------- JOIN ---------------- */
   const joinCall = async () => {
     setCallState("joining");
 
@@ -189,7 +196,6 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
 
       setCallState("in-call");
     } catch (err) {
-      console.error(err);
       toast.error("Camera/Mic access denied");
       setCallState("idle");
     }
