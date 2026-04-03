@@ -53,6 +53,7 @@ console.log(result);`);
   const [fileSystem, setFileSystem] = useState(null);
   const [creatingItem, setCreatingItem] = useState(null);
   const [expandedFolders, setExpandedFolders] = useState([]);
+  const isCallerRef = useRef(false);
 
   const [contextMenu, setContextMenu] = useState({
     visible: false,
@@ -236,10 +237,9 @@ console.log(result);`);
     fetchUnread();
   }, [roomId]);
 
-  // 👇 YAHAN ADD KARNA HAI
   useEffect(() => {
     videoSocket.on("incoming-call", ({ senderId }) => {
-      if (senderId === videoSocket.id) return; // 👈 self ignore
+      if (isCallerRef.current) return;
 
       setShowVideoCall(true);
       setAutoJoin(false);
@@ -764,13 +764,17 @@ console.log(result);`);
                   variant="ghost"
                   size="sm"
                   onClick={() => {
+                    isCallerRef.current = true;
+
                     setShowVideoCall(true);
                     setAutoJoin(true);
 
-                    videoSocket.emit("incoming-call", {
-                      roomId,
-                      senderId: videoSocket.id
-                    });
+                    setTimeout(() => {
+                      videoSocket.emit("incoming-call", {
+                        roomId,
+                        senderId: videoSocket.id
+                      });
+                    }, 100);
                   }}
                   icon={Video}
                 />

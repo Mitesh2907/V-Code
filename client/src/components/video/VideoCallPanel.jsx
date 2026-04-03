@@ -9,7 +9,7 @@ const servers = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
-const VideoCallPanel = ({ onClose }) => {
+const VideoCallPanel = ({ onClose, autoJoin }) => {
   const { roomId } = useParams();
 
   const [callState, setCallState] = useState("idle");
@@ -41,7 +41,6 @@ const VideoCallPanel = ({ onClose }) => {
       }));
     };
 
-    // add local tracks
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => {
         peer.addTrack(track, streamRef.current);
@@ -56,14 +55,12 @@ const VideoCallPanel = ({ onClose }) => {
   useEffect(() => {
     if (!roomId) return;
 
-    // 🔥 REMOVE OLD LISTENERS
     videoSocket.off("video-user-joined");
     videoSocket.off("video-offer");
     videoSocket.off("video-answer");
     videoSocket.off("video-ice-candidate");
     videoSocket.off("video-user-left");
 
-    // ✅ USER JOINED
     videoSocket.on("video-user-joined", async ({ socketId }) => {
       const peer = createPeer(socketId);
 
@@ -76,7 +73,6 @@ const VideoCallPanel = ({ onClose }) => {
       });
     });
 
-    // ✅ RECEIVE OFFER
     videoSocket.on("video-offer", async ({ offer, sender }) => {
       const peer = createPeer(sender);
 
@@ -91,7 +87,6 @@ const VideoCallPanel = ({ onClose }) => {
       });
     });
 
-    // ✅ RECEIVE ANSWER
     videoSocket.on("video-answer", async ({ answer, sender }) => {
       const peer = peersRef.current[sender];
       if (peer) {
@@ -101,7 +96,6 @@ const VideoCallPanel = ({ onClose }) => {
       }
     });
 
-    // ✅ RECEIVE ICE
     videoSocket.on("video-ice-candidate", async ({ candidate, sender }) => {
       try {
         const peer = peersRef.current[sender];
@@ -113,7 +107,6 @@ const VideoCallPanel = ({ onClose }) => {
       }
     });
 
-    // ✅ USER LEFT
     videoSocket.on("video-user-left", ({ socketId }) => {
       if (peersRef.current[socketId]) {
         peersRef.current[socketId].close();
@@ -135,6 +128,13 @@ const VideoCallPanel = ({ onClose }) => {
       videoSocket.off("video-user-left");
     };
   }, [roomId, createPeer]);
+
+  /* ---------------- AUTO JOIN ---------------- */
+  useEffect(() => {
+    if (autoJoin && callState === "idle") {
+      joinCall();
+    }
+  }, [autoJoin, callState]);
 
   /* ---------------- JOIN CALL ---------------- */
   const joinCall = async () => {
@@ -209,7 +209,7 @@ const VideoCallPanel = ({ onClose }) => {
         </div>
 
         <div className="p-4 bg-gray-800">
-          {callState === "idle" && (
+          {callState === "idle" && !autoJoin && (
             <button
               onClick={joinCall}
               className="px-4 py-2 bg-blue-600 text-white rounded"
