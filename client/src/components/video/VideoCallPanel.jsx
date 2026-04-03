@@ -30,7 +30,7 @@ peer.onicecandidate = (event) => {
   if (event.candidate) {
     videoSocket.emit("video-ice-candidate", {
       candidate: event.candidate,
-      target: socketId,
+      to: socketId, // ✅ FIX
     });
   }
 };
@@ -42,9 +42,12 @@ peer.ontrack = (event) => {
   }));
 };
 
-streamRef.current.getTracks().forEach((track) => {
-  peer.addTrack(track, streamRef.current);
-});
+// ✅ SAFE CHECK
+if (streamRef.current) {
+  streamRef.current.getTracks().forEach((track) => {
+    peer.addTrack(track, streamRef.current);
+  });
+}
 
 peersRef.current[socketId] = peer;
 return peer;
@@ -57,6 +60,14 @@ useEffect(() => {
 if (!roomId) return;
 
 ```
+// 🔥 REMOVE OLD LISTENERS
+videoSocket.off("video-user-joined");
+videoSocket.off("video-offer");
+videoSocket.off("video-answer");
+videoSocket.off("video-ice-candidate");
+videoSocket.off("video-user-left");
+
+// ✅ USER JOINED
 videoSocket.on("video-user-joined", async ({ socketId }) => {
   const peer = createPeer(socketId);
 
@@ -65,10 +76,11 @@ videoSocket.on("video-user-joined", async ({ socketId }) => {
 
   videoSocket.emit("video-offer", {
     offer,
-    target: socketId,
+    to: socketId, // ✅ FIX
   });
 });
 
+// ✅ RECEIVE OFFER
 videoSocket.on("video-offer", async ({ offer, sender }) => {
   const peer = createPeer(sender);
 
@@ -79,29 +91,38 @@ videoSocket.on("video-offer", async ({ offer, sender }) => {
 
   videoSocket.emit("video-answer", {
     answer,
-    target: sender,
+    to: sender, // ✅ FIX
   });
 });
 
+// ✅ RECEIVE ANSWER
 videoSocket.on("video-answer", async ({ answer, sender }) => {
-  await peersRef.current[sender]?.setRemoteDescription(
-    new RTCSessionDescription(answer)
-  );
-});
-
-videoSocket.on("video-ice-candidate", async ({ candidate, sender }) => {
-  try {
-    await peersRef.current[sender]?.addIceCandidate(
-      new RTCIceCandidate(candidate)
+  const peer = peersRef.current[sender];
+  if (peer) {
+    await peer.setRemoteDescription(
+      new RTCSessionDescription(answer)
     );
-  } catch (err) {
-    console.error("ICE error", err);
   }
 });
 
+// ✅ RECEIVE ICE
+videoSocket.on("video-ice-candidate", async ({ candidate, sender }) => {
+  try {
+    const peer = peersRef.current[sender];
+    if (peer) {
+      await peer.addIceCandidate(new RTCIceCandidate(candidate));
+    }
+  } catch (err) {
+    console.error("ICE error:", err);
+  }
+});
+
+// ✅ USER LEFT
 videoSocket.on("video-user-left", ({ socketId }) => {
-  peersRef.current[socketId]?.close();
-  delete peersRef.current[socketId];
+  if (peersRef.current[socketId]) {
+    peersRef.current[socketId].close();
+    delete peersRef.current[socketId];
+  }
 
   setRemoteStreams((prev) => {
     const updated = { ...prev };
@@ -148,7 +169,9 @@ try {
 
 /* ---------------- LEAVE CALL ---------------- */
 const leaveCall = () => {
-streamRef.current?.getTracks().forEach((t) => t.stop());
+if (streamRef.current) {
+streamRef.current.getTracks().forEach((t) => t.stop());
+}
 
 ```
 Object.values(peersRef.current).forEach((peer) => peer.close());
@@ -167,20 +190,27 @@ onClose?.();
 
 /* ---------------- TOGGLE ---------------- */
 const toggleMic = () => {
-streamRef.current?.getAudioTracks().forEach((t) => {
+if (streamRef.current) {
+streamRef.current.getAudioTracks().forEach((t) => {
 t.enabled = !t.enabled;
 });
+}
 setMicOn((prev) => !prev);
 };
 
 const toggleCam = () => {
-streamRef.current?.getVideoTracks().forEach((t) => {
+if (streamRef.current) {
+streamRef.current.getVideoTracks().forEach((t) => {
 t.enabled = !t.enabled;
 });
+}
 setCamOn((prev) => !prev);
 };
 
-return ( <div className="fixed inset-0 z-50 flex items-end justify-center"> <div className="absolute inset-0 bg-black/60" onClick={leaveCall} />
+return ( <div className="fixed inset-0 z-50 flex items-end justify-center"> <div
+     className="absolute inset-0 bg-black/60"
+     onClick={leaveCall}
+   />
 
 ```
   <div className="relative max-w-6xl w-full mx-4 my-8 bg-gray-900 rounded-lg shadow-xl overflow-hidden flex flex-col">
