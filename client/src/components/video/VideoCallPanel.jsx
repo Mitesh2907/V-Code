@@ -49,7 +49,6 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       }));
     };
 
-    // ✅ Always add tracks if available
     streamRef.current?.getTracks().forEach((track) => {
       peer.addTrack(track, streamRef.current);
     });
@@ -62,19 +61,36 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
   useEffect(() => {
     if (!roomId) return;
 
+    videoSocket.off("existing-users");
     videoSocket.off("video-user-joined");
     videoSocket.off("video-offer");
     videoSocket.off("video-answer");
     videoSocket.off("video-ice-candidate");
     videoSocket.off("video-user-left");
 
-    // ✅ USER JOINED (FIXED)
+    /* 🔥 EXISTING USERS FIX */
+    videoSocket.on("existing-users", async (users) => {
+      console.log("Existing users:", users);
+
+      users.forEach(async (id) => {
+        if (!streamRef.current) return;
+
+        const peer = createPeer(id);
+
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+
+        videoSocket.emit("video-offer", {
+          offer,
+          to: id,
+        });
+      });
+    });
+
+    /* 🔥 NEW USER JOINED */
     videoSocket.on("video-user-joined", ({ socketId }) => {
       setTimeout(async () => {
-        if (!streamRef.current) {
-          console.log("Stream not ready yet");
-          return;
-        }
+        if (!streamRef.current) return;
 
         const peer = createPeer(socketId);
 
@@ -85,9 +101,10 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
           offer,
           to: socketId,
         });
-      }, 300); // 🔥 delay fix
+      }, 300);
     });
 
+    /* 🔥 RECEIVE OFFER */
     videoSocket.on("video-offer", async ({ offer, sender }) => {
       const peer = createPeer(sender);
 
@@ -102,6 +119,7 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       });
     });
 
+    /* 🔥 RECEIVE ANSWER */
     videoSocket.on("video-answer", async ({ answer, sender }) => {
       const peer = peersRef.current[sender];
       if (peer) {
@@ -111,6 +129,7 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       }
     });
 
+    /* 🔥 ICE */
     videoSocket.on("video-ice-candidate", async ({ candidate, sender }) => {
       try {
         const peer = peersRef.current[sender];
@@ -122,6 +141,7 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       }
     });
 
+    /* 🔥 USER LEFT */
     videoSocket.on("video-user-left", ({ socketId }) => {
       if (peersRef.current[socketId]) {
         peersRef.current[socketId].close();
@@ -136,6 +156,7 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
     });
 
     return () => {
+      videoSocket.off("existing-users");
       videoSocket.off("video-user-joined");
       videoSocket.off("video-offer");
       videoSocket.off("video-answer");
@@ -161,8 +182,6 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
         audio: true,
       });
 
-      console.log("LOCAL STREAM:", stream);
-
       streamRef.current = stream;
       setLocalStream(stream);
 
@@ -176,11 +195,9 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
     }
   };
 
-  /* ---------------- LEAVE CALL ---------------- */
+  /* ---------------- LEAVE ---------------- */
   const leaveCall = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-    }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
 
     Object.values(peersRef.current).forEach((peer) => peer.close());
     peersRef.current = {};
@@ -191,32 +208,29 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
 
     videoSocket.emit("video-leave-room", { roomId });
 
-    if (onClose) onClose();
+    onClose && onClose();
   };
 
-  /* ---------------- TOGGLE ---------------- */
+  /* ---------------- TOGGLES ---------------- */
   const toggleMic = () => {
     streamRef.current?.getAudioTracks().forEach((t) => {
       t.enabled = !t.enabled;
     });
-    setMicOn((prev) => !prev);
+    setMicOn((p) => !p);
   };
 
   const toggleCam = () => {
     streamRef.current?.getVideoTracks().forEach((t) => {
       t.enabled = !t.enabled;
     });
-    setCamOn((prev) => !prev);
+    setCamOn((p) => !p);
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div
-        className="absolute inset-0 bg-black/60"
-        onClick={leaveCall}
-      />
+      <div className="absolute inset-0 bg-black/60" onClick={leaveCall} />
 
-      <div className="relative max-w-6xl w-full mx-4 my-8 bg-gray-900 rounded-lg shadow-xl overflow-hidden flex flex-col">
+      <div className="relative max-w-6xl w-full mx-4 my-8 bg-gray-900 rounded-lg overflow-hidden flex flex-col">
         <div className="p-3 border-b border-gray-700 text-gray-200">
           Multi User Video Call
         </div>

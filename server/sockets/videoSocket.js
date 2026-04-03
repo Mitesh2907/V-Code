@@ -1,4 +1,4 @@
-const activeCalls = new Set(); // 🔥 track active calls
+const activeCalls = new Set();
 
 const videoSocket = (io, socket) => {
   console.log("🎥 Video socket connected:", socket.id);
@@ -7,7 +7,6 @@ const videoSocket = (io, socket) => {
   socket.on("join-room", ({ roomId }) => {
     socket.join(roomId);
 
-    // 🔥 agar call already chal rahi hai
     if (activeCalls.has(roomId)) {
       socket.emit("call-started");
     }
@@ -17,15 +16,24 @@ const videoSocket = (io, socket) => {
   socket.on("video-join-room", ({ roomId }) => {
     socket.join(roomId);
 
-    // 🔥 mark call active
     activeCalls.add(roomId);
 
-    // 🔥 notify others for WebRTC
+    // 🔥 GET ALL USERS IN ROOM
+    const clients = Array.from(
+      io.sockets.adapter.rooms.get(roomId) || []
+    );
+
+    // 🔥 SEND EXISTING USERS TO NEW USER
+    socket.emit(
+      "existing-users",
+      clients.filter((id) => id !== socket.id)
+    );
+
+    // 🔥 NOTIFY OTHERS
     socket.to(roomId).emit("video-user-joined", {
       socketId: socket.id,
     });
 
-    // 🔥 notify all users UI update
     io.to(roomId).emit("call-started");
   });
 
@@ -39,7 +47,6 @@ const videoSocket = (io, socket) => {
 
     const room = io.sockets.adapter.rooms.get(roomId);
 
-    // 🔥 agar room me koi nahi bacha
     if (!room || room.size === 0) {
       activeCalls.delete(roomId);
       io.to(roomId).emit("call-ended");
