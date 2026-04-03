@@ -6,7 +6,14 @@ import videoSocket from "../../configs/videoSocket";
 import { useParams } from "react-router-dom";
 
 const servers = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    {
+      urls: "turn:openrelay.metered.ca:80",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+  ],
 };
 
 const VideoCallPanel = ({ onClose, autoJoin }) => {
@@ -35,17 +42,17 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
     };
 
     peer.ontrack = (event) => {
+      console.log("REMOTE STREAM RECEIVED");
       setRemoteStreams((prev) => ({
         ...prev,
         [socketId]: event.streams[0],
       }));
     };
 
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => {
-        peer.addTrack(track, streamRef.current);
-      });
-    }
+    // ✅ Always add tracks if available
+    streamRef.current?.getTracks().forEach((track) => {
+      peer.addTrack(track, streamRef.current);
+    });
 
     peersRef.current[socketId] = peer;
     return peer;
@@ -61,16 +68,24 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
     videoSocket.off("video-ice-candidate");
     videoSocket.off("video-user-left");
 
-    videoSocket.on("video-user-joined", async ({ socketId }) => {
-      const peer = createPeer(socketId);
+    // ✅ USER JOINED (FIXED)
+    videoSocket.on("video-user-joined", ({ socketId }) => {
+      setTimeout(async () => {
+        if (!streamRef.current) {
+          console.log("Stream not ready yet");
+          return;
+        }
 
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
+        const peer = createPeer(socketId);
 
-      videoSocket.emit("video-offer", {
-        offer,
-        to: socketId,
-      });
+        const offer = await peer.createOffer();
+        await peer.setLocalDescription(offer);
+
+        videoSocket.emit("video-offer", {
+          offer,
+          to: socketId,
+        });
+      }, 300); // 🔥 delay fix
     });
 
     videoSocket.on("video-offer", async ({ offer, sender }) => {
@@ -146,6 +161,8 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
         audio: true,
       });
 
+      console.log("LOCAL STREAM:", stream);
+
       streamRef.current = stream;
       setLocalStream(stream);
 
@@ -179,20 +196,16 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
 
   /* ---------------- TOGGLE ---------------- */
   const toggleMic = () => {
-    if (streamRef.current) {
-      streamRef.current.getAudioTracks().forEach((t) => {
-        t.enabled = !t.enabled;
-      });
-    }
+    streamRef.current?.getAudioTracks().forEach((t) => {
+      t.enabled = !t.enabled;
+    });
     setMicOn((prev) => !prev);
   };
 
   const toggleCam = () => {
-    if (streamRef.current) {
-      streamRef.current.getVideoTracks().forEach((t) => {
-        t.enabled = !t.enabled;
-      });
-    }
+    streamRef.current?.getVideoTracks().forEach((t) => {
+      t.enabled = !t.enabled;
+    });
     setCamOn((prev) => !prev);
   };
 

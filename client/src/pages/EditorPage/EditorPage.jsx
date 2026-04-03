@@ -33,6 +33,7 @@ const EditorPage = () => {
   const [cursorPos, setCursorPos] = useState({ line: 1, col: 1 });
   const [showExplorer, setShowExplorer] = useState(true);
   const [autoJoin, setAutoJoin] = useState(false);
+  const [isCallActive, setIsCallActive] = useState(false);
   const [code, setCode] = useState(`// Welcome to V-Code Collaborative Editor
 // Create files and folders using the + buttons
 // Your changes sync in real-time with your team
@@ -220,7 +221,11 @@ console.log(result);`);
 
   }, [roomId, showChat]);
 
+  useEffect(() => {
+  if (!roomId) return;
 
+  videoSocket.emit("join-room", { roomId });
+}, [roomId]);
 
   const fetchUnread = async () => {
     if (!roomId) return;
@@ -247,6 +252,21 @@ console.log(result);`);
 
     return () => {
       videoSocket.off("incoming-call");
+    };
+  }, []);
+
+  useEffect(() => {
+    videoSocket.on("call-started", () => {
+      setIsCallActive(true);
+    });
+
+    videoSocket.on("call-ended", () => {
+      setIsCallActive(false);
+    });
+
+    return () => {
+      videoSocket.off("call-started");
+      videoSocket.off("call-ended");
     };
   }, []);
 
@@ -760,24 +780,31 @@ console.log(result);`);
                 </button>
 
                 {/* Video + Chat */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    isCallerRef.current = true;
+                {isCallActive ? (
+                  <button
+                    onClick={() => {
+                      setShowVideoCall(true);
+                      setAutoJoin(false); // 👈 join mode
+                    }}
+                    className="px-3 py-1 bg-green-600 text-white rounded"
+                  >
+                    Join Call
+                  </button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      isCallerRef.current = true;
 
-                    setShowVideoCall(true);
-                    setAutoJoin(true);
+                      setShowVideoCall(true);
+                      setAutoJoin(true);
 
-                    setTimeout(() => {
-                      videoSocket.emit("incoming-call", {
-                        roomId,
-                        senderId: videoSocket.id
-                      });
-                    }, 100);
-                  }}
-                  icon={Video}
-                />
+                      videoSocket.emit("incoming-call", { roomId });
+                    }}
+                    icon={Video}
+                  />
+                )}
                 <div className="relative">
                   <Button
                     variant="ghost"
