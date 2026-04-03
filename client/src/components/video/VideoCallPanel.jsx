@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import VideoControls from "./VideoControls";
 import LocalVideo from "./LocalVideo";
 import toast from "react-hot-toast";
@@ -6,253 +6,241 @@ import videoSocket from "../../configs/videoSocket";
 import { useParams } from "react-router-dom";
 
 const servers = {
-iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
 const VideoCallPanel = ({ onClose }) => {
-const { roomId } = useParams();
+  const { roomId } = useParams();
 
-const [callState, setCallState] = useState("idle");
-const [localStream, setLocalStream] = useState(null);
-const [remoteStreams, setRemoteStreams] = useState({});
-const [micOn, setMicOn] = useState(true);
-const [camOn, setCamOn] = useState(true);
+  const [callState, setCallState] = useState("idle");
+  const [localStream, setLocalStream] = useState(null);
+  const [remoteStreams, setRemoteStreams] = useState({});
+  const [micOn, setMicOn] = useState(true);
+  const [camOn, setCamOn] = useState(true);
 
-const peersRef = useRef({});
-const streamRef = useRef(null);
+  const peersRef = useRef({});
+  const streamRef = useRef(null);
 
-/* ---------------- CREATE PEER ---------------- */
-const createPeer = (socketId) => {
-const peer = new RTCPeerConnection(servers);
+  /* ---------------- CREATE PEER ---------------- */
+  const createPeer = useCallback((socketId) => {
+    const peer = new RTCPeerConnection(servers);
 
-```
-peer.onicecandidate = (event) => {
-  if (event.candidate) {
-    videoSocket.emit("video-ice-candidate", {
-      candidate: event.candidate,
-      to: socketId, // ✅ FIX
-    });
-  }
-};
+    peer.onicecandidate = (event) => {
+      if (event.candidate) {
+        videoSocket.emit("video-ice-candidate", {
+          candidate: event.candidate,
+          to: socketId,
+        });
+      }
+    };
 
-peer.ontrack = (event) => {
-  setRemoteStreams((prev) => ({
-    ...prev,
-    [socketId]: event.streams[0],
-  }));
-};
+    peer.ontrack = (event) => {
+      setRemoteStreams((prev) => ({
+        ...prev,
+        [socketId]: event.streams[0],
+      }));
+    };
 
-// ✅ SAFE CHECK
-if (streamRef.current) {
-  streamRef.current.getTracks().forEach((track) => {
-    peer.addTrack(track, streamRef.current);
-  });
-}
-
-peersRef.current[socketId] = peer;
-return peer;
-```
-
-};
-
-/* ---------------- SOCKET EVENTS ---------------- */
-useEffect(() => {
-if (!roomId) return;
-
-```
-// 🔥 REMOVE OLD LISTENERS
-videoSocket.off("video-user-joined");
-videoSocket.off("video-offer");
-videoSocket.off("video-answer");
-videoSocket.off("video-ice-candidate");
-videoSocket.off("video-user-left");
-
-// ✅ USER JOINED
-videoSocket.on("video-user-joined", async ({ socketId }) => {
-  const peer = createPeer(socketId);
-
-  const offer = await peer.createOffer();
-  await peer.setLocalDescription(offer);
-
-  videoSocket.emit("video-offer", {
-    offer,
-    to: socketId, // ✅ FIX
-  });
-});
-
-// ✅ RECEIVE OFFER
-videoSocket.on("video-offer", async ({ offer, sender }) => {
-  const peer = createPeer(sender);
-
-  await peer.setRemoteDescription(new RTCSessionDescription(offer));
-
-  const answer = await peer.createAnswer();
-  await peer.setLocalDescription(answer);
-
-  videoSocket.emit("video-answer", {
-    answer,
-    to: sender, // ✅ FIX
-  });
-});
-
-// ✅ RECEIVE ANSWER
-videoSocket.on("video-answer", async ({ answer, sender }) => {
-  const peer = peersRef.current[sender];
-  if (peer) {
-    await peer.setRemoteDescription(
-      new RTCSessionDescription(answer)
-    );
-  }
-});
-
-// ✅ RECEIVE ICE
-videoSocket.on("video-ice-candidate", async ({ candidate, sender }) => {
-  try {
-    const peer = peersRef.current[sender];
-    if (peer) {
-      await peer.addIceCandidate(new RTCIceCandidate(candidate));
+    // add local tracks
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        peer.addTrack(track, streamRef.current);
+      });
     }
-  } catch (err) {
-    console.error("ICE error:", err);
-  }
-});
 
-// ✅ USER LEFT
-videoSocket.on("video-user-left", ({ socketId }) => {
-  if (peersRef.current[socketId]) {
-    peersRef.current[socketId].close();
-    delete peersRef.current[socketId];
-  }
+    peersRef.current[socketId] = peer;
+    return peer;
+  }, []);
 
-  setRemoteStreams((prev) => {
-    const updated = { ...prev };
-    delete updated[socketId];
-    return updated;
-  });
-});
+  /* ---------------- SOCKET EVENTS ---------------- */
+  useEffect(() => {
+    if (!roomId) return;
 
-return () => {
-  videoSocket.off("video-user-joined");
-  videoSocket.off("video-offer");
-  videoSocket.off("video-answer");
-  videoSocket.off("video-ice-candidate");
-  videoSocket.off("video-user-left");
-};
-```
+    // 🔥 REMOVE OLD LISTENERS
+    videoSocket.off("video-user-joined");
+    videoSocket.off("video-offer");
+    videoSocket.off("video-answer");
+    videoSocket.off("video-ice-candidate");
+    videoSocket.off("video-user-left");
 
-}, [roomId]);
+    // ✅ USER JOINED
+    videoSocket.on("video-user-joined", async ({ socketId }) => {
+      const peer = createPeer(socketId);
 
-/* ---------------- JOIN CALL ---------------- */
-const joinCall = async () => {
-setCallState("joining");
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
 
-```
-try {
-  const stream = await navigator.mediaDevices.getUserMedia({
-    video: true,
-    audio: true,
-  });
+      videoSocket.emit("video-offer", {
+        offer,
+        to: socketId,
+      });
+    });
 
-  streamRef.current = stream;
-  setLocalStream(stream);
+    // ✅ RECEIVE OFFER
+    videoSocket.on("video-offer", async ({ offer, sender }) => {
+      const peer = createPeer(sender);
 
-  videoSocket.emit("video-join-room", { roomId });
+      await peer.setRemoteDescription(new RTCSessionDescription(offer));
 
-  setCallState("in-call");
-} catch (err) {
-  toast.error("Camera/Mic access denied");
-  setCallState("idle");
-}
-```
+      const answer = await peer.createAnswer();
+      await peer.setLocalDescription(answer);
 
-};
+      videoSocket.emit("video-answer", {
+        answer,
+        to: sender,
+      });
+    });
 
-/* ---------------- LEAVE CALL ---------------- */
-const leaveCall = () => {
-if (streamRef.current) {
-streamRef.current.getTracks().forEach((t) => t.stop());
-}
+    // ✅ RECEIVE ANSWER
+    videoSocket.on("video-answer", async ({ answer, sender }) => {
+      const peer = peersRef.current[sender];
+      if (peer) {
+        await peer.setRemoteDescription(
+          new RTCSessionDescription(answer)
+        );
+      }
+    });
 
-```
-Object.values(peersRef.current).forEach((peer) => peer.close());
-peersRef.current = {};
+    // ✅ RECEIVE ICE
+    videoSocket.on("video-ice-candidate", async ({ candidate, sender }) => {
+      try {
+        const peer = peersRef.current[sender];
+        if (peer) {
+          await peer.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+      } catch (err) {
+        console.error("ICE error:", err);
+      }
+    });
 
-setLocalStream(null);
-setRemoteStreams({});
-setCallState("idle");
+    // ✅ USER LEFT
+    videoSocket.on("video-user-left", ({ socketId }) => {
+      if (peersRef.current[socketId]) {
+        peersRef.current[socketId].close();
+        delete peersRef.current[socketId];
+      }
 
-videoSocket.emit("video-leave-room", { roomId });
+      setRemoteStreams((prev) => {
+        const updated = { ...prev };
+        delete updated[socketId];
+        return updated;
+      });
+    });
 
-onClose?.();
-```
+    return () => {
+      videoSocket.off("video-user-joined");
+      videoSocket.off("video-offer");
+      videoSocket.off("video-answer");
+      videoSocket.off("video-ice-candidate");
+      videoSocket.off("video-user-left");
+    };
+  }, [roomId, createPeer]);
 
-};
+  /* ---------------- JOIN CALL ---------------- */
+  const joinCall = async () => {
+    setCallState("joining");
 
-/* ---------------- TOGGLE ---------------- */
-const toggleMic = () => {
-if (streamRef.current) {
-streamRef.current.getAudioTracks().forEach((t) => {
-t.enabled = !t.enabled;
-});
-}
-setMicOn((prev) => !prev);
-};
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
 
-const toggleCam = () => {
-if (streamRef.current) {
-streamRef.current.getVideoTracks().forEach((t) => {
-t.enabled = !t.enabled;
-});
-}
-setCamOn((prev) => !prev);
-};
+      streamRef.current = stream;
+      setLocalStream(stream);
 
-return ( <div className="fixed inset-0 z-50 flex items-end justify-center"> <div
-     className="absolute inset-0 bg-black/60"
-     onClick={leaveCall}
-   />
+      videoSocket.emit("video-join-room", { roomId });
 
-```
-  <div className="relative max-w-6xl w-full mx-4 my-8 bg-gray-900 rounded-lg shadow-xl overflow-hidden flex flex-col">
-    <div className="p-3 border-b border-gray-700 text-gray-200">
-      Multi User Video Call
-    </div>
+      setCallState("in-call");
+    } catch (err) {
+      console.error(err);
+      toast.error("Camera/Mic access denied");
+      setCallState("idle");
+    }
+  };
 
-    <div className="p-4 bg-gray-800">
-      {callState === "idle" && (
-        <button
-          onClick={joinCall}
-          className="px-4 py-2 bg-blue-600 text-white rounded"
-        >
-          Join Call
-        </button>
-      )}
+  /* ---------------- LEAVE CALL ---------------- */
+  const leaveCall = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+    }
 
-      {callState === "in-call" && (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <LocalVideo stream={localStream} muted />
+    Object.values(peersRef.current).forEach((peer) => peer.close());
+    peersRef.current = {};
 
-          {Object.entries(remoteStreams).map(([id, stream]) => (
-            <LocalVideo key={id} stream={stream} muted={false} />
-          ))}
-        </div>
-      )}
-    </div>
+    setLocalStream(null);
+    setRemoteStreams({});
+    setCallState("idle");
 
-    {callState === "in-call" && (
-      <VideoControls
-        micOn={micOn}
-        camOn={camOn}
-        onToggleMic={toggleMic}
-        onToggleCam={toggleCam}
-        onLeave={leaveCall}
+    videoSocket.emit("video-leave-room", { roomId });
+
+    if (onClose) onClose();
+  };
+
+  /* ---------------- TOGGLE ---------------- */
+  const toggleMic = () => {
+    if (streamRef.current) {
+      streamRef.current.getAudioTracks().forEach((t) => {
+        t.enabled = !t.enabled;
+      });
+    }
+    setMicOn((prev) => !prev);
+  };
+
+  const toggleCam = () => {
+    if (streamRef.current) {
+      streamRef.current.getVideoTracks().forEach((t) => {
+        t.enabled = !t.enabled;
+      });
+    }
+    setCamOn((prev) => !prev);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center">
+      <div
+        className="absolute inset-0 bg-black/60"
+        onClick={leaveCall}
       />
-    )}
-  </div>
-</div>
 
+      <div className="relative max-w-6xl w-full mx-4 my-8 bg-gray-900 rounded-lg shadow-xl overflow-hidden flex flex-col">
+        <div className="p-3 border-b border-gray-700 text-gray-200">
+          Multi User Video Call
+        </div>
 
-);
+        <div className="p-4 bg-gray-800">
+          {callState === "idle" && (
+            <button
+              onClick={joinCall}
+              className="px-4 py-2 bg-blue-600 text-white rounded"
+            >
+              Join Call
+            </button>
+          )}
+
+          {callState === "in-call" && (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <LocalVideo stream={localStream} muted />
+
+              {Object.entries(remoteStreams).map(([id, stream]) => (
+                <LocalVideo key={id} stream={stream} muted={false} />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {callState === "in-call" && (
+          <VideoControls
+            micOn={micOn}
+            camOn={camOn}
+            onToggleMic={toggleMic}
+            onToggleCam={toggleCam}
+            onLeave={leaveCall}
+          />
+        )}
+      </div>
+    </div>
+  );
 };
 
 export default VideoCallPanel;
