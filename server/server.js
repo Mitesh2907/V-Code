@@ -72,7 +72,7 @@ const io = new Server(server, {
   },
 });
 
-// 🔥 TRACK CALL STATE
+// 🔥 TRACK VIDEO CALL STATE
 const activeCalls = new Set();
 const callUsers = {};
 
@@ -81,9 +81,9 @@ io.on("connection", (socket) => {
 
   chatSocket(io, socket);
 
-  /* ================= VIDEO CALL ================= */
+  /* ================= ROOM ================= */
 
-  // 🔥 ROOM JOIN (UI sync)
+  // 🔥 JOIN ROOM (editor sync)
   socket.on("join-room", ({ roomId }) => {
     socket.join(roomId);
 
@@ -92,20 +92,28 @@ io.on("connection", (socket) => {
     }
   });
 
-  // 🔥 START / JOIN CALL
+  // 🔥 LEAVE ROOM (FIXED)
+  socket.on("leave-room", ({ roomId }) => {
+    socket.leave(roomId);
+  });
+
+  /* ================= VIDEO CALL ================= */
+
+  // 🔥 START / JOIN VIDEO CALL
   socket.on("video-join-room", ({ roomId }) => {
     socket.join(roomId);
 
-    if (!callUsers[roomId]) callUsers[roomId] = new Set();
-    callUsers[roomId].add(socket.id);
+    if (!callUsers[roomId]) {
+      callUsers[roomId] = new Set();
+    }
 
+    callUsers[roomId].add(socket.id);
     activeCalls.add(roomId);
 
-    // existing users send (important for WebRTC)
-    const room = io.sockets.adapter.rooms.get(roomId);
-    const existingUsers = room
-      ? Array.from(room).filter((id) => id !== socket.id)
-      : [];
+    // ✅ ONLY video users
+    const existingUsers = Array.from(callUsers[roomId]).filter(
+      (id) => id !== socket.id
+    );
 
     socket.emit("existing-users", existingUsers);
 
@@ -140,7 +148,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 🔥 LEAVE CALL
+  // 🔥 LEAVE VIDEO CALL
   socket.on("video-leave-room", ({ roomId }) => {
     socket.leave(roomId);
 
@@ -151,11 +159,11 @@ io.on("connection", (socket) => {
     if (callUsers[roomId]) {
       callUsers[roomId].delete(socket.id);
 
-      if (callUsers[roomId].size === 0) {
+      if (callUsers[roomId].size <= 1) {
         delete callUsers[roomId];
         activeCalls.delete(roomId);
 
-        io.to(roomId).emit("call-ended"); // 🔥 FIX
+        io.to(roomId).emit("call-ended");
       }
     }
   });
@@ -168,11 +176,11 @@ io.on("connection", (socket) => {
       if (callUsers[roomId].has(socket.id)) {
         callUsers[roomId].delete(socket.id);
 
-        if (callUsers[roomId].size === 0) {
+        if (callUsers[roomId].size <= 1) {
           delete callUsers[roomId];
           activeCalls.delete(roomId);
 
-          io.to(roomId).emit("call-ended"); // 🔥 FIX
+          io.to(roomId).emit("call-ended");
         }
       }
     }

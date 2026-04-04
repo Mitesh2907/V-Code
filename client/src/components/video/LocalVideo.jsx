@@ -9,9 +9,9 @@ const LocalVideo = ({ stream, muted = true }) => {
     if (!video) return;
 
     if (stream) {
+      // 🔥 ALWAYS reattach stream
       video.srcObject = stream;
 
-      // 🔥 IMPORTANT FIX (black screen fix)
       video.onloadedmetadata = () => {
         video.play().catch(() => {});
       };
@@ -19,20 +19,16 @@ const LocalVideo = ({ stream, muted = true }) => {
       const track = stream.getVideoTracks()[0];
 
       if (track) {
-        // 🔥 event based (better than interval)
-        const updateState = () => setCamOn(track.enabled);
+        // 🔥 FIX: use interval (reliable)
+        const interval = setInterval(() => {
+          setCamOn(track.enabled);
+        }, 300);
 
-        track.onmute = updateState;
-        track.onunmute = updateState;
-
-        // initial state
-        setCamOn(track.enabled);
+        return () => clearInterval(interval);
       }
+    } else {
+      video.srcObject = null;
     }
-
-    return () => {
-      if (video) video.srcObject = null;
-    };
   }, [stream]);
 
   return (

@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import videoSocket from "../../configs/videoSocket";
 import { useParams } from "react-router-dom";
 
-// 🔥 FIXED ICE SERVERS
+// 🔥 ICE SERVERS
 const servers = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -31,13 +31,10 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
 
   /* ---------------- CREATE PEER ---------------- */
   const createPeer = useCallback((socketId) => {
-    if (peersRef.current[socketId]) {
-      return peersRef.current[socketId];
-    }
+    if (peersRef.current[socketId]) return peersRef.current[socketId];
 
     const peer = new RTCPeerConnection(servers);
 
-    // 🔥 DEBUG
     peer.onconnectionstatechange = () => {
       console.log("Connection:", peer.connectionState);
     };
@@ -66,6 +63,7 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       }));
     };
 
+    // 🔥 ADD TRACKS SAFELY
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => {
         peer.addTrack(track, streamRef.current);
@@ -80,12 +78,14 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
   useEffect(() => {
     if (!roomId) return;
 
+    // cleanup old listeners
     videoSocket.off("existing-users");
     videoSocket.off("video-user-joined");
     videoSocket.off("video-offer");
     videoSocket.off("video-answer");
     videoSocket.off("video-ice-candidate");
     videoSocket.off("video-user-left");
+    videoSocket.off("call-ended");
 
     /* 🔥 EXISTING USERS */
     videoSocket.on("existing-users", async (users) => {
@@ -106,7 +106,7 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       }
     });
 
-    /* 🔥 NEW USER JOINED (FIXED: NO DELAY) */
+    /* 🔥 NEW USER */
     videoSocket.on("video-user-joined", async ({ socketId }) => {
       if (!streamRef.current) return;
       if (peersRef.current[socketId]) return;
@@ -173,6 +173,13 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       });
     });
 
+    /* 🔥 CALL ENDED (FIX) */
+    videoSocket.on("call-ended", () => {
+      console.log("Call ended");
+
+      leaveCall();
+    });
+
     return () => {
       videoSocket.off("existing-users");
       videoSocket.off("video-user-joined");
@@ -180,6 +187,7 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       videoSocket.off("video-answer");
       videoSocket.off("video-ice-candidate");
       videoSocket.off("video-user-left");
+      videoSocket.off("call-ended");
     };
   }, [roomId, createPeer]);
 
@@ -203,9 +211,10 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       streamRef.current = stream;
       setLocalStream(stream);
 
-      videoSocket.emit("video-join-room", { roomId });
-
+      // 🔥 FIX ORDER
       setCallState("in-call");
+
+      videoSocket.emit("video-join-room", { roomId });
     } catch (err) {
       toast.error("Camera/Mic access denied");
       setCallState("idle");

@@ -212,14 +212,14 @@ console.log(result);`);
   };
 
   useEffect(() => {
-  if (!roomId) return;
+    if (!roomId) return;
 
-  videoSocket.emit("join-room", { roomId });
+    videoSocket.emit("join-room", { roomId });
 
-  return () => {
-    videoSocket.emit("video-leave-room", { roomId }); // 🔥 FIX
-  };
-}, [roomId]);
+    return () => {
+      videoSocket.emit("leave-room", { roomId });
+    };
+  }, [roomId]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -231,7 +231,7 @@ console.log(result);`);
 
   }, [roomId, showChat]);
 
-  
+
 
   const fetchUnread = async () => {
     if (!roomId) return;
@@ -252,10 +252,12 @@ console.log(result);`);
 
   useEffect(() => {
     videoSocket.on("call-started", () => {
+      console.log("Call started");
       setIsCallActive(true);
     });
 
     videoSocket.on("call-ended", () => {
+      console.log("Call ended");
       setIsCallActive(false);
     });
 
