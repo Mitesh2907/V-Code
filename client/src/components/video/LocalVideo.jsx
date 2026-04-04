@@ -9,17 +9,15 @@ const LocalVideo = ({ stream, muted = true }) => {
     if (!video) return;
 
     if (stream) {
-      // 🔥 ALWAYS reattach stream
+      // 🔥 ALWAYS attach stream ONCE
       video.srcObject = stream;
 
-      video.onloadedmetadata = () => {
-        video.play().catch(() => {});
-      };
+      // 🔥 play directly (no metadata dependency)
+      video.play().catch(() => {});
 
       const track = stream.getVideoTracks()[0];
 
       if (track) {
-        // 🔥 FIX: use interval (reliable)
         const interval = setInterval(() => {
           setCamOn(track.enabled);
         }, 300);
@@ -34,16 +32,18 @@ const LocalVideo = ({ stream, muted = true }) => {
   return (
     <div className="w-full h-full relative bg-gray-900 rounded overflow-hidden flex items-center justify-center">
       
-      {camOn ? (
-        <video
-          ref={videoRef}
-          muted={muted}
-          playsInline
-          autoPlay
-          className="w-full h-full object-cover"
-        />
-      ) : (
-        <div className="flex flex-col items-center justify-center text-white">
+      {/* 🔥 VIDEO ALWAYS RENDER */}
+      <video
+        ref={videoRef}
+        muted={muted}
+        playsInline
+        autoPlay
+        className={`w-full h-full object-cover ${camOn ? "block" : "hidden"}`}
+      />
+
+      {/* 🔥 CAMERA OFF UI OVERLAY */}
+      {!camOn && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-gray-900">
           <div className="w-16 h-16 rounded-full bg-yellow-400 flex items-center justify-center text-black font-bold text-lg">
             U
           </div>
