@@ -5,15 +5,9 @@ import toast from "react-hot-toast";
 import videoSocket from "../../configs/videoSocket";
 import { useParams } from "react-router-dom";
 
-// 🔥 ICE SERVERS
 const servers = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
-    {
-      urls: "turn:relay1.expressturn.com:3478",
-      username: "efQFZK7N7RZ3G7MZ",
-      credential: "X6j3b0M1",
-    },
   ],
 };
 
@@ -31,17 +25,11 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
 
   /* ---------------- CREATE PEER ---------------- */
   const createPeer = useCallback((socketId) => {
-    if (peersRef.current[socketId]) return peersRef.current[socketId];
+    if (peersRef.current[socketId]) {
+      return peersRef.current[socketId]; // 🔥 prevent duplicate
+    }
 
     const peer = new RTCPeerConnection(servers);
-
-    peer.onconnectionstatechange = () => {
-      console.log("Connection:", peer.connectionState);
-    };
-
-    peer.oniceconnectionstatechange = () => {
-      console.log("ICE:", peer.iceConnectionState);
-    };
 
     peer.onicecandidate = (event) => {
       if (event.candidate) {
@@ -55,20 +43,20 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
     peer.ontrack = (event) => {
       console.log("REMOTE STREAM RECEIVED");
 
-      const stream = event.streams[0];
-
       setRemoteStreams((prev) => ({
         ...prev,
-        [socketId]: stream,
+        [socketId]: event.streams[0],
       }));
     };
 
-    // 🔥 ADD TRACKS SAFELY
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => {
-        peer.addTrack(track, streamRef.current);
-      });
-    }
+    // 🔥 IMPORTANT FIX (delay track add)
+    setTimeout(() => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => {
+          peer.addTrack(track, streamRef.current);
+        });
+      }
+    }, 200);
 
     peersRef.current[socketId] = peer;
     return peer;
@@ -78,19 +66,10 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
   useEffect(() => {
     if (!roomId) return;
 
-    // cleanup old listeners
-    videoSocket.off("existing-users");
-    videoSocket.off("video-user-joined");
-    videoSocket.off("video-offer");
-    videoSocket.off("video-answer");
-    videoSocket.off("video-ice-candidate");
-    videoSocket.off("video-user-left");
-    videoSocket.off("call-ended");
+    videoSocket.off();
 
     /* 🔥 EXISTING USERS */
     videoSocket.on("existing-users", async (users) => {
-      console.log("Existing users:", users);
-
       for (const id of users) {
         if (peersRef.current[id]) continue;
 
@@ -124,7 +103,14 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
 
     /* 🔥 RECEIVE OFFER */
     videoSocket.on("video-offer", async ({ offer, sender }) => {
-      const peer = peersRef.current[sender] || createPeer(sender);
+      let peer = peersRef.current[sender];
+
+      if (!peer) {
+        peer = createPeer(sender);
+      }
+
+      // 🔥 prevent invalid state
+      if (peer.signalingState !== "stable") return;
 
       await peer.setRemoteDescription(new RTCSessionDescription(offer));
 
@@ -137,25 +123,31 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       });
     });
 
-    /* 🔥 RECEIVE ANSWER */
+    /* 🔥 RECEIVE ANSWER (FIXED) */
     videoSocket.on("video-answer", async ({ answer, sender }) => {
       const peer = peersRef.current[sender];
-      if (peer) {
-        await peer.setRemoteDescription(
-          new RTCSessionDescription(answer)
-        );
+      if (!peer) return;
+
+      // 🔥 MAIN FIX
+      if (peer.signalingState !== "have-local-offer") {
+        console.log("Skipping invalid answer");
+        return;
       }
+
+      await peer.setRemoteDescription(
+        new RTCSessionDescription(answer)
+      );
     });
 
     /* 🔥 ICE */
     videoSocket.on("video-ice-candidate", async ({ candidate, sender }) => {
+      const peer = peersRef.current[sender];
+      if (!peer) return;
+
       try {
-        const peer = peersRef.current[sender];
-        if (peer) {
-          await peer.addIceCandidate(new RTCIceCandidate(candidate));
-        }
+        await peer.addIceCandidate(new RTCIceCandidate(candidate));
       } catch (err) {
-        console.error("ICE error:", err);
+        console.log("ICE error", err);
       }
     });
 
@@ -173,30 +165,12 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       });
     });
 
-    /* 🔥 CALL ENDED (FIX) */
     videoSocket.on("call-ended", () => {
-      console.log("Call ended");
-
       leaveCall();
     });
 
-    return () => {
-      videoSocket.off("existing-users");
-      videoSocket.off("video-user-joined");
-      videoSocket.off("video-offer");
-      videoSocket.off("video-answer");
-      videoSocket.off("video-ice-candidate");
-      videoSocket.off("video-user-left");
-      videoSocket.off("call-ended");
-    };
+    return () => videoSocket.off();
   }, [roomId, createPeer]);
-
-  /* ---------------- AUTO JOIN ---------------- */
-  useEffect(() => {
-    if (autoJoin && callState === "idle") {
-      joinCall();
-    }
-  }, [autoJoin, callState]);
 
   /* ---------------- JOIN ---------------- */
   const joinCall = async () => {
@@ -211,12 +185,11 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       streamRef.current = stream;
       setLocalStream(stream);
 
-      // 🔥 FIX ORDER
       setCallState("in-call");
 
       videoSocket.emit("video-join-room", { roomId });
-    } catch (err) {
-      toast.error("Camera/Mic access denied");
+    } catch {
+      toast.error("Camera permission denied");
       setCallState("idle");
     }
   };
@@ -225,11 +198,11 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
   const leaveCall = () => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
 
-    Object.values(peersRef.current).forEach((peer) => peer.close());
+    Object.values(peersRef.current).forEach((p) => p.close());
     peersRef.current = {};
 
-    setLocalStream(null);
     setRemoteStreams({});
+    setLocalStream(null);
     setCallState("idle");
 
     videoSocket.emit("video-leave-room", { roomId });
@@ -237,21 +210,7 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
     onClose && onClose();
   };
 
-  /* ---------------- TOGGLES ---------------- */
-  const toggleMic = () => {
-    streamRef.current?.getAudioTracks().forEach((t) => {
-      t.enabled = !t.enabled;
-    });
-    setMicOn((p) => !p);
-  };
-
-  const toggleCam = () => {
-    streamRef.current?.getVideoTracks().forEach((t) => {
-      t.enabled = !t.enabled;
-    });
-    setCamOn((p) => !p);
-  };
-
+  /* ---------------- UI ---------------- */
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/60" />
@@ -286,8 +245,8 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
           <VideoControls
             micOn={micOn}
             camOn={camOn}
-            onToggleMic={toggleMic}
-            onToggleCam={toggleCam}
+            onToggleMic={() => {}}
+            onToggleCam={() => {}}
             onLeave={leaveCall}
           />
         )}
