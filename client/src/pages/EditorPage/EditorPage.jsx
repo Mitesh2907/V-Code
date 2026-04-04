@@ -212,6 +212,16 @@ console.log(result);`);
   };
 
   useEffect(() => {
+  if (!roomId) return;
+
+  videoSocket.emit("join-room", { roomId });
+
+  return () => {
+    videoSocket.emit("video-leave-room", { roomId }); // 🔥 FIX
+  };
+}, [roomId]);
+
+  useEffect(() => {
     if (!roomId) return;
 
     api.get(`/chat/unread/${roomId}`)
@@ -221,11 +231,7 @@ console.log(result);`);
 
   }, [roomId, showChat]);
 
-  useEffect(() => {
-    if (!roomId) return;
-
-    videoSocket.emit("join-room", { roomId });
-  }, [roomId]);
+  
 
   const fetchUnread = async () => {
     if (!roomId) return;
@@ -775,7 +781,6 @@ console.log(result);`);
                       setShowVideoCall(true);
                       setAutoJoin(false);
 
-                      videoSocket.emit("video-join-room", { roomId }); // 🔥 FIX
                     }}
                     className="px-3 py-1 bg-green-600 text-white rounded"
                   >
@@ -791,7 +796,6 @@ console.log(result);`);
                       setShowVideoCall(true);
                       setAutoJoin(true);
 
-                      videoSocket.emit("video-join-room", { roomId }); // 🔥 FIX
                     }}
                     icon={Video}
                   />

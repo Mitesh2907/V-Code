@@ -72,8 +72,9 @@ const io = new Server(server, {
   },
 });
 
-// 🔥 TRACK ACTIVE CALLS
+// 🔥 TRACK CALL STATE
 const activeCalls = new Set();
+const callUsers = {};
 
 io.on("connection", (socket) => {
   console.log("🔌 User connected:", socket.id);
@@ -82,7 +83,7 @@ io.on("connection", (socket) => {
 
   /* ================= VIDEO CALL ================= */
 
-  // 🔥 JOIN ROOM (UI sync)
+  // 🔥 ROOM JOIN (UI sync)
   socket.on("join-room", ({ roomId }) => {
     socket.join(roomId);
 
@@ -91,15 +92,20 @@ io.on("connection", (socket) => {
     }
   });
 
-  // 🔥 VIDEO JOIN ROOM (FIXED)
+  // 🔥 START / JOIN CALL
   socket.on("video-join-room", ({ roomId }) => {
-    const room = io.sockets.adapter.rooms.get(roomId);
+    socket.join(roomId);
 
+    if (!callUsers[roomId]) callUsers[roomId] = new Set();
+    callUsers[roomId].add(socket.id);
+
+    activeCalls.add(roomId);
+
+    // existing users send (important for WebRTC)
+    const room = io.sockets.adapter.rooms.get(roomId);
     const existingUsers = room
       ? Array.from(room).filter((id) => id !== socket.id)
       : [];
-
-    socket.join(roomId);
 
     socket.emit("existing-users", existingUsers);
 
@@ -107,7 +113,6 @@ io.on("connection", (socket) => {
       socketId: socket.id,
     });
 
-    activeCalls.add(roomId);
     io.to(roomId).emit("call-started");
   });
 
@@ -135,7 +140,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 🔥 LEAVE ROOM
+  // 🔥 LEAVE CALL
   socket.on("video-leave-room", ({ roomId }) => {
     socket.leave(roomId);
 
@@ -143,17 +148,34 @@ io.on("connection", (socket) => {
       socketId: socket.id,
     });
 
-    const room = io.sockets.adapter.rooms.get(roomId);
+    if (callUsers[roomId]) {
+      callUsers[roomId].delete(socket.id);
 
-    if (!room || room.size === 0) {
-      activeCalls.delete(roomId);
-      io.to(roomId).emit("call-ended");
+      if (callUsers[roomId].size === 0) {
+        delete callUsers[roomId];
+        activeCalls.delete(roomId);
+
+        io.to(roomId).emit("call-ended"); // 🔥 FIX
+      }
     }
   });
 
   // 🔥 DISCONNECT
   socket.on("disconnect", () => {
     console.log("❌ User disconnected:", socket.id);
+
+    for (const roomId in callUsers) {
+      if (callUsers[roomId].has(socket.id)) {
+        callUsers[roomId].delete(socket.id);
+
+        if (callUsers[roomId].size === 0) {
+          delete callUsers[roomId];
+          activeCalls.delete(roomId);
+
+          io.to(roomId).emit("call-ended"); // 🔥 FIX
+        }
+      }
+    }
 
     socket.broadcast.emit("video-user-left", {
       socketId: socket.id,

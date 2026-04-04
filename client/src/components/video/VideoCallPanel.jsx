@@ -5,13 +5,14 @@ import toast from "react-hot-toast";
 import videoSocket from "../../configs/videoSocket";
 import { useParams } from "react-router-dom";
 
+// 🔥 FIXED ICE SERVERS
 const servers = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     {
-      urls: "turn:openrelay.metered.ca:80",
-      username: "openrelayproject",
-      credential: "openrelayproject",
+      urls: "turn:relay1.expressturn.com:3478",
+      username: "efQFZK7N7RZ3G7MZ",
+      credential: "X6j3b0M1",
     },
   ],
 };
@@ -30,12 +31,20 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
 
   /* ---------------- CREATE PEER ---------------- */
   const createPeer = useCallback((socketId) => {
-    // 🔥 duplicate peer avoid
     if (peersRef.current[socketId]) {
       return peersRef.current[socketId];
     }
 
     const peer = new RTCPeerConnection(servers);
+
+    // 🔥 DEBUG
+    peer.onconnectionstatechange = () => {
+      console.log("Connection:", peer.connectionState);
+    };
+
+    peer.oniceconnectionstatechange = () => {
+      console.log("ICE:", peer.iceConnectionState);
+    };
 
     peer.onicecandidate = (event) => {
       if (event.candidate) {
@@ -48,15 +57,20 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
 
     peer.ontrack = (event) => {
       console.log("REMOTE STREAM RECEIVED");
+
+      const stream = event.streams[0];
+
       setRemoteStreams((prev) => ({
         ...prev,
-        [socketId]: event.streams[0],
+        [socketId]: stream,
       }));
     };
 
-    streamRef.current?.getTracks().forEach((track) => {
-      peer.addTrack(track, streamRef.current);
-    });
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        peer.addTrack(track, streamRef.current);
+      });
+    }
 
     peersRef.current[socketId] = peer;
     return peer;
@@ -92,23 +106,20 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       }
     });
 
-    /* 🔥 NEW USER JOINED */
-    videoSocket.on("video-user-joined", ({ socketId }) => {
-      setTimeout(async () => {
-        if (!streamRef.current) return;
+    /* 🔥 NEW USER JOINED (FIXED: NO DELAY) */
+    videoSocket.on("video-user-joined", async ({ socketId }) => {
+      if (!streamRef.current) return;
+      if (peersRef.current[socketId]) return;
 
-        if (peersRef.current[socketId]) return;
+      const peer = createPeer(socketId);
 
-        const peer = createPeer(socketId);
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
 
-        const offer = await peer.createOffer();
-        await peer.setLocalDescription(offer);
-
-        videoSocket.emit("video-offer", {
-          offer,
-          to: socketId,
-        });
-      }, 300);
+      videoSocket.emit("video-offer", {
+        offer,
+        to: socketId,
+      });
     });
 
     /* 🔥 RECEIVE OFFER */
@@ -234,7 +245,7 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div className="absolute inset-0 bg-black/60" onClick={leaveCall} />
+      <div className="absolute inset-0 bg-black/60" />
 
       <div className="relative max-w-6xl w-full mx-4 my-8 bg-gray-900 rounded-lg overflow-hidden flex flex-col">
         <div className="p-3 border-b border-gray-700 text-gray-200">
