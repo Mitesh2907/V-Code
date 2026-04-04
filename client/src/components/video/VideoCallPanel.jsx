@@ -11,7 +11,7 @@ const servers = {
   ],
 };
 
-const VideoCallPanel = ({ onClose, autoJoin }) => {
+const VideoCallPanel = ({ onClose }) => {
   const { roomId } = useParams();
 
   const [callState, setCallState] = useState("idle");
@@ -25,9 +25,7 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
 
   /* ---------------- CREATE PEER ---------------- */
   const createPeer = useCallback((socketId) => {
-    if (peersRef.current[socketId]) {
-      return peersRef.current[socketId]; // 🔥 prevent duplicate
-    }
+    if (peersRef.current[socketId]) return peersRef.current[socketId];
 
     const peer = new RTCPeerConnection(servers);
 
@@ -49,14 +47,12 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       }));
     };
 
-    // 🔥 IMPORTANT FIX (delay track add)
-    setTimeout(() => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => {
-          peer.addTrack(track, streamRef.current);
-        });
-      }
-    }, 200);
+    // 🔥 add tracks
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        peer.addTrack(track, streamRef.current);
+      });
+    }
 
     peersRef.current[socketId] = peer;
     return peer;
@@ -68,11 +64,8 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
 
     videoSocket.off();
 
-    /* 🔥 EXISTING USERS */
     videoSocket.on("existing-users", async (users) => {
       for (const id of users) {
-        if (peersRef.current[id]) continue;
-
         const peer = createPeer(id);
 
         const offer = await peer.createOffer();
@@ -85,10 +78,8 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       }
     });
 
-    /* 🔥 NEW USER */
     videoSocket.on("video-user-joined", async ({ socketId }) => {
       if (!streamRef.current) return;
-      if (peersRef.current[socketId]) return;
 
       const peer = createPeer(socketId);
 
@@ -101,15 +92,11 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       });
     });
 
-    /* 🔥 RECEIVE OFFER */
     videoSocket.on("video-offer", async ({ offer, sender }) => {
       let peer = peersRef.current[sender];
 
-      if (!peer) {
-        peer = createPeer(sender);
-      }
+      if (!peer) peer = createPeer(sender);
 
-      // 🔥 prevent invalid state
       if (peer.signalingState !== "stable") return;
 
       await peer.setRemoteDescription(new RTCSessionDescription(offer));
@@ -123,23 +110,17 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       });
     });
 
-    /* 🔥 RECEIVE ANSWER (FIXED) */
     videoSocket.on("video-answer", async ({ answer, sender }) => {
       const peer = peersRef.current[sender];
       if (!peer) return;
 
-      // 🔥 MAIN FIX
-      if (peer.signalingState !== "have-local-offer") {
-        console.log("Skipping invalid answer");
-        return;
-      }
+      if (peer.signalingState !== "have-local-offer") return;
 
       await peer.setRemoteDescription(
         new RTCSessionDescription(answer)
       );
     });
 
-    /* 🔥 ICE */
     videoSocket.on("video-ice-candidate", async ({ candidate, sender }) => {
       const peer = peersRef.current[sender];
       if (!peer) return;
@@ -147,11 +128,10 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       try {
         await peer.addIceCandidate(new RTCIceCandidate(candidate));
       } catch (err) {
-        console.log("ICE error", err);
+        console.log("ICE error:", err);
       }
     });
 
-    /* 🔥 USER LEFT */
     videoSocket.on("video-user-left", ({ socketId }) => {
       if (peersRef.current[socketId]) {
         peersRef.current[socketId].close();
@@ -172,11 +152,16 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
     return () => videoSocket.off();
   }, [roomId, createPeer]);
 
+  /* ---------------- AUTO JOIN (FIXED) ---------------- */
+  useEffect(() => {
+    joinCall(); // 🔥 always start
+  }, []);
+
   /* ---------------- JOIN ---------------- */
   const joinCall = async () => {
-    setCallState("joining");
-
     try {
+      console.log("JOIN CALL START");
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
@@ -188,9 +173,9 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
       setCallState("in-call");
 
       videoSocket.emit("video-join-room", { roomId });
-    } catch {
+    } catch (err) {
+      console.error(err);
       toast.error("Camera permission denied");
-      setCallState("idle");
     }
   };
 
@@ -210,7 +195,21 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
     onClose && onClose();
   };
 
-  /* ---------------- UI ---------------- */
+  /* ---------------- TOGGLE ---------------- */
+  const toggleMic = () => {
+    streamRef.current?.getAudioTracks().forEach((t) => {
+      t.enabled = !t.enabled;
+    });
+    setMicOn((p) => !p);
+  };
+
+  const toggleCam = () => {
+    streamRef.current?.getVideoTracks().forEach((t) => {
+      t.enabled = !t.enabled;
+    });
+    setCamOn((p) => !p);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/60" />
@@ -221,15 +220,6 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
         </div>
 
         <div className="p-4 bg-gray-800">
-          {callState === "idle" && !autoJoin && (
-            <button
-              onClick={joinCall}
-              className="px-4 py-2 bg-blue-600 text-white rounded"
-            >
-              Join Call
-            </button>
-          )}
-
           {callState === "in-call" && (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <LocalVideo stream={localStream} muted />
@@ -245,8 +235,8 @@ const VideoCallPanel = ({ onClose, autoJoin }) => {
           <VideoControls
             micOn={micOn}
             camOn={camOn}
-            onToggleMic={() => {}}
-            onToggleCam={() => {}}
+            onToggleMic={toggleMic}
+            onToggleCam={toggleCam}
             onLeave={leaveCall}
           />
         )}
