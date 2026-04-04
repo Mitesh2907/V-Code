@@ -5,28 +5,39 @@ const LocalVideo = ({ stream, muted = true }) => {
   const [camOn, setCamOn] = useState(true);
 
   useEffect(() => {
-    const el = videoRef.current;
-    if (!el || !stream) return;
+    const video = videoRef.current;
+    if (!video) return;
 
-    el.srcObject = stream;
-    el.play().catch(() => {});
+    if (stream) {
+      video.srcObject = stream;
 
-    const track = stream.getVideoTracks()[0];
+      // 🔥 IMPORTANT FIX (black screen fix)
+      video.onloadedmetadata = () => {
+        video.play().catch(() => {});
+      };
 
-    if (!track) return;
+      const track = stream.getVideoTracks()[0];
 
-    // 🔥 REAL FIX: interval check (reliable)
-    const interval = setInterval(() => {
-      setCamOn(track.enabled);
-    }, 300);
+      if (track) {
+        // 🔥 event based (better than interval)
+        const updateState = () => setCamOn(track.enabled);
 
-    return () => clearInterval(interval);
+        track.onmute = updateState;
+        track.onunmute = updateState;
+
+        // initial state
+        setCamOn(track.enabled);
+      }
+    }
+
+    return () => {
+      if (video) video.srcObject = null;
+    };
   }, [stream]);
 
   return (
     <div className="w-full h-full relative bg-gray-900 rounded overflow-hidden flex items-center justify-center">
       
-      {/* 🎥 VIDEO */}
       {camOn ? (
         <video
           ref={videoRef}
@@ -36,14 +47,11 @@ const LocalVideo = ({ stream, muted = true }) => {
           className="w-full h-full object-cover"
         />
       ) : (
-        /* 👤 AVATAR */
         <div className="flex flex-col items-center justify-center text-white">
-          <img
-            src="https://ui-avatars.com/api/?name=User&background=random"
-            alt="avatar"
-            className="w-16 h-16 rounded-full mb-2"
-          />
-          <span className="text-sm opacity-70">Camera Off</span>
+          <div className="w-16 h-16 rounded-full bg-yellow-400 flex items-center justify-center text-black font-bold text-lg">
+            U
+          </div>
+          <span className="text-sm opacity-70 mt-2">Camera Off</span>
         </div>
       )}
     </div>

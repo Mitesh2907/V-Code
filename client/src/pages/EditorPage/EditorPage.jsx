@@ -222,10 +222,10 @@ console.log(result);`);
   }, [roomId, showChat]);
 
   useEffect(() => {
-  if (!roomId) return;
+    if (!roomId) return;
 
-  videoSocket.emit("join-room", { roomId });
-}, [roomId]);
+    videoSocket.emit("join-room", { roomId });
+  }, [roomId]);
 
   const fetchUnread = async () => {
     if (!roomId) return;
@@ -242,18 +242,7 @@ console.log(result);`);
     fetchUnread();
   }, [roomId]);
 
-  useEffect(() => {
-    videoSocket.on("incoming-call", ({ senderId }) => {
-      if (isCallerRef.current) return;
 
-      setShowVideoCall(true);
-      setAutoJoin(false);
-    });
-
-    return () => {
-      videoSocket.off("incoming-call");
-    };
-  }, []);
 
   useEffect(() => {
     videoSocket.on("call-started", () => {
@@ -784,7 +773,9 @@ console.log(result);`);
                   <button
                     onClick={() => {
                       setShowVideoCall(true);
-                      setAutoJoin(false); // 👈 join mode
+                      setAutoJoin(false);
+
+                      videoSocket.emit("video-join-room", { roomId }); // 🔥 FIX
                     }}
                     className="px-3 py-1 bg-green-600 text-white rounded"
                   >
@@ -800,7 +791,7 @@ console.log(result);`);
                       setShowVideoCall(true);
                       setAutoJoin(true);
 
-                      videoSocket.emit("incoming-call", { roomId });
+                      videoSocket.emit("video-join-room", { roomId }); // 🔥 FIX
                     }}
                     icon={Video}
                   />

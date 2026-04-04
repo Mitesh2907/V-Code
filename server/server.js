@@ -72,21 +72,43 @@ const io = new Server(server, {
   },
 });
 
+// 🔥 TRACK ACTIVE CALLS
+const activeCalls = new Set();
+
 io.on("connection", (socket) => {
   console.log("🔌 User connected:", socket.id);
 
-  // Chat socket
   chatSocket(io, socket);
 
   /* ================= VIDEO CALL ================= */
 
-  // 🔥 JOIN ROOM
-  socket.on("video-join-room", ({ roomId }) => {
+  // 🔥 JOIN ROOM (UI sync)
+  socket.on("join-room", ({ roomId }) => {
     socket.join(roomId);
+
+    if (activeCalls.has(roomId)) {
+      socket.emit("call-started");
+    }
+  });
+
+  // 🔥 VIDEO JOIN ROOM (FIXED)
+  socket.on("video-join-room", ({ roomId }) => {
+    const room = io.sockets.adapter.rooms.get(roomId);
+
+    const existingUsers = room
+      ? Array.from(room).filter((id) => id !== socket.id)
+      : [];
+
+    socket.join(roomId);
+
+    socket.emit("existing-users", existingUsers);
 
     socket.to(roomId).emit("video-user-joined", {
       socketId: socket.id,
     });
+
+    activeCalls.add(roomId);
+    io.to(roomId).emit("call-started");
   });
 
   // 🔥 OFFER
@@ -113,13 +135,20 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 🔥 LEAVE ROOM (important)
+  // 🔥 LEAVE ROOM
   socket.on("video-leave-room", ({ roomId }) => {
     socket.leave(roomId);
 
     socket.to(roomId).emit("video-user-left", {
       socketId: socket.id,
     });
+
+    const room = io.sockets.adapter.rooms.get(roomId);
+
+    if (!room || room.size === 0) {
+      activeCalls.delete(roomId);
+      io.to(roomId).emit("call-ended");
+    }
   });
 
   // 🔥 DISCONNECT
