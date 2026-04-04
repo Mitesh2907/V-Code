@@ -6,9 +6,7 @@ import videoSocket from "../../configs/videoSocket";
 import { useParams } from "react-router-dom";
 
 const servers = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-  ],
+  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
 const VideoCallPanel = ({ onClose }) => {
@@ -22,6 +20,9 @@ const VideoCallPanel = ({ onClose }) => {
 
   const peersRef = useRef({});
   const streamRef = useRef(null);
+
+  // 🔥 FIX: ICE queue
+  const pendingCandidatesRef = useRef({});
 
   /* ---------------- CREATE PEER ---------------- */
   const createPeer = useCallback((socketId) => {
@@ -39,15 +40,13 @@ const VideoCallPanel = ({ onClose }) => {
     };
 
     peer.ontrack = (event) => {
-      console.log("REMOTE STREAM RECEIVED");
-
       setRemoteStreams((prev) => ({
         ...prev,
         [socketId]: event.streams[0],
       }));
     };
 
-    // 🔥 add tracks
+    // add local tracks
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => {
         peer.addTrack(track, streamRef.current);
@@ -64,6 +63,7 @@ const VideoCallPanel = ({ onClose }) => {
 
     videoSocket.off();
 
+    // 🔹 Existing users → create offer
     videoSocket.on("existing-users", async (users) => {
       for (const id of users) {
         const peer = createPeer(id);
@@ -78,6 +78,7 @@ const VideoCallPanel = ({ onClose }) => {
       }
     });
 
+    // 🔹 New user joined
     videoSocket.on("video-user-joined", async ({ socketId }) => {
       if (!streamRef.current) return;
 
@@ -92,46 +93,76 @@ const VideoCallPanel = ({ onClose }) => {
       });
     });
 
+    // 🔹 Receive OFFER
     videoSocket.on("video-offer", async ({ offer, sender }) => {
       let peer = peersRef.current[sender];
-
       if (!peer) peer = createPeer(sender);
 
-      if (peer.signalingState !== "stable") return;
+      try {
+        await peer.setRemoteDescription(new RTCSessionDescription(offer));
 
-      await peer.setRemoteDescription(new RTCSessionDescription(offer));
+        // 🔥 APPLY PENDING ICE
+        if (pendingCandidatesRef.current[sender]) {
+          for (const c of pendingCandidatesRef.current[sender]) {
+            await peer.addIceCandidate(new RTCIceCandidate(c));
+          }
+          delete pendingCandidatesRef.current[sender];
+        }
 
-      const answer = await peer.createAnswer();
-      await peer.setLocalDescription(answer);
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
 
-      videoSocket.emit("video-answer", {
-        answer,
-        to: sender,
-      });
+        videoSocket.emit("video-answer", {
+          answer,
+          to: sender,
+        });
+      } catch (err) {
+        console.error("Offer error:", err);
+      }
     });
 
+    // 🔹 Receive ANSWER
     videoSocket.on("video-answer", async ({ answer, sender }) => {
       const peer = peersRef.current[sender];
       if (!peer) return;
 
-      if (peer.signalingState !== "have-local-offer") return;
+      try {
+        await peer.setRemoteDescription(
+          new RTCSessionDescription(answer)
+        );
 
-      await peer.setRemoteDescription(
-        new RTCSessionDescription(answer)
-      );
+        // 🔥 APPLY PENDING ICE
+        if (pendingCandidatesRef.current[sender]) {
+          for (const c of pendingCandidatesRef.current[sender]) {
+            await peer.addIceCandidate(new RTCIceCandidate(c));
+          }
+          delete pendingCandidatesRef.current[sender];
+        }
+      } catch (err) {
+        console.error("Answer error:", err);
+      }
     });
 
+    // 🔹 ICE CANDIDATE
     videoSocket.on("video-ice-candidate", async ({ candidate, sender }) => {
       const peer = peersRef.current[sender];
       if (!peer) return;
 
       try {
-        await peer.addIceCandidate(new RTCIceCandidate(candidate));
+        if (peer.remoteDescription) {
+          await peer.addIceCandidate(new RTCIceCandidate(candidate));
+        } else {
+          if (!pendingCandidatesRef.current[sender]) {
+            pendingCandidatesRef.current[sender] = [];
+          }
+          pendingCandidatesRef.current[sender].push(candidate);
+        }
       } catch (err) {
-        console.log("ICE error:", err);
+        console.error("ICE error:", err);
       }
     });
 
+    // 🔹 User left
     videoSocket.on("video-user-left", ({ socketId }) => {
       if (peersRef.current[socketId]) {
         peersRef.current[socketId].close();
@@ -143,8 +174,11 @@ const VideoCallPanel = ({ onClose }) => {
         delete updated[socketId];
         return updated;
       });
+
+      delete pendingCandidatesRef.current[socketId];
     });
 
+    // 🔹 Call ended
     videoSocket.on("call-ended", () => {
       leaveCall();
     });
@@ -152,16 +186,14 @@ const VideoCallPanel = ({ onClose }) => {
     return () => videoSocket.off();
   }, [roomId, createPeer]);
 
-  /* ---------------- AUTO JOIN (FIXED) ---------------- */
+  /* ---------------- AUTO JOIN ---------------- */
   useEffect(() => {
-    joinCall(); // 🔥 always start
+    joinCall();
   }, []);
 
   /* ---------------- JOIN ---------------- */
   const joinCall = async () => {
     try {
-      console.log("JOIN CALL START");
-
       const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
         audio: true,
@@ -185,6 +217,7 @@ const VideoCallPanel = ({ onClose }) => {
 
     Object.values(peersRef.current).forEach((p) => p.close());
     peersRef.current = {};
+    pendingCandidatesRef.current = {};
 
     setRemoteStreams({});
     setLocalStream(null);
