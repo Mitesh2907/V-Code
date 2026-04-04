@@ -56,7 +56,7 @@ app.use("/api/admin/rooms", adminRoomRoutes);
 app.use("/api/admin", adminSystemRoutes);
 app.use("/api/admin", adminSettingsRoutes);
 
-// Health check route
+// Health check
 app.get("/", (req, res) => {
   res.send("🚀 API + Socket Server Running");
 });
@@ -78,45 +78,66 @@ io.on("connection", (socket) => {
   // Chat socket
   chatSocket(io, socket);
 
-  // ================= VIDEO CALL =================
+  /* ================= VIDEO CALL ================= */
 
+  // 🔥 JOIN ROOM
   socket.on("video-join-room", ({ roomId }) => {
-    socket.join(`video-${roomId}`);
-    socket.to(`video-${roomId}`).emit("video-user-joined", {
+    socket.join(roomId);
+
+    socket.to(roomId).emit("video-user-joined", {
       socketId: socket.id,
     });
   });
 
-  socket.on("video-offer", ({ offer, target }) => {
-    io.to(target).emit("video-offer", {
+  // 🔥 OFFER
+  socket.on("video-offer", ({ offer, to }) => {
+    io.to(to).emit("video-offer", {
       offer,
       sender: socket.id,
     });
   });
 
-  socket.on("video-answer", ({ answer, target }) => {
-    io.to(target).emit("video-answer", {
+  // 🔥 ANSWER
+  socket.on("video-answer", ({ answer, to }) => {
+    io.to(to).emit("video-answer", {
       answer,
       sender: socket.id,
     });
   });
 
-  socket.on("video-ice-candidate", ({ candidate, target }) => {
-    io.to(target).emit("video-ice-candidate", {
+  // 🔥 ICE
+  socket.on("video-ice-candidate", ({ candidate, to }) => {
+    io.to(to).emit("video-ice-candidate", {
       candidate,
       sender: socket.id,
     });
   });
 
+  // 🔥 LEAVE ROOM (important)
+  socket.on("video-leave-room", ({ roomId }) => {
+    socket.leave(roomId);
+
+    socket.to(roomId).emit("video-user-left", {
+      socketId: socket.id,
+    });
+  });
+
+  // 🔥 DISCONNECT
   socket.on("disconnect", () => {
     console.log("❌ User disconnected:", socket.id);
+
+    socket.broadcast.emit("video-user-left", {
+      socketId: socket.id,
+    });
   });
 });
+
+/* ================= TEST ROUTE ================= */
 
 app.get("/test", async (req, res) => {
   res.json({
     message: "Backend working 🚀",
-    status: "success"
+    status: "success",
   });
 });
 
