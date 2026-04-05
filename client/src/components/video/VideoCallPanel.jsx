@@ -5,13 +5,24 @@ import toast from "react-hot-toast";
 import videoSocket from "../../configs/videoSocket";
 import { useParams } from "react-router-dom";
 
+// 🔥 FINAL ICE CONFIG (IMPROVED)
 const servers = {
   iceServers: [
+    // ✅ multiple STUN
     { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+    { urls: "stun:stun2.l.google.com:19302" },
+
+    // ✅ TURN fallback
     {
-      urls: "turn:relay1.expressturn.com:3478",
-      username: "efXQ7XWJ7X",
-      credential: "efXQ7XWJ7X",
+      urls: "turn:openrelay.metered.ca:80",
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+    {
+      urls: "turn:openrelay.metered.ca:443?transport=tcp",
+      username: "openrelayproject",
+      credential: "openrelayproject",
     },
   ],
 };
@@ -33,8 +44,12 @@ const VideoCallPanel = ({ onClose }) => {
   const createPeer = useCallback((socketId) => {
     if (peersRef.current[socketId]) return peersRef.current[socketId];
 
-    const peer = new RTCPeerConnection(servers);
+    const peer = new RTCPeerConnection({
+      iceServers: servers.iceServers,
+      iceTransportPolicy: "all",
+    });
 
+    // ICE candidate
     peer.onicecandidate = (event) => {
       if (event.candidate) {
         videoSocket.emit("video-ice-candidate", {
@@ -44,9 +59,14 @@ const VideoCallPanel = ({ onClose }) => {
       }
     };
 
+    // 🔥 DEBUG ICE STATE
+    peer.oniceconnectionstatechange = () => {
+      console.log("ICE STATE:", socketId, peer.iceConnectionState);
+    };
+
+    // Remote stream
     peer.ontrack = (event) => {
       setRemoteStreams((prev) => {
-        // 🔥 FIX: prevent overwrite (audio/video multiple events)
         if (prev[socketId]) return prev;
 
         return {
@@ -137,7 +157,6 @@ const VideoCallPanel = ({ onClose }) => {
       if (!peer) return;
 
       try {
-        // 🔥 FIX: prevent wrong state error
         if (peer.signalingState !== "have-local-offer") {
           console.warn("Skipping answer, wrong state:", peer.signalingState);
           return;

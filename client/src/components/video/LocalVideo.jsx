@@ -6,33 +6,38 @@ const LocalVideo = ({ stream, muted = true }) => {
 
   useEffect(() => {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !stream) return;
 
-    if (stream) {
-      // 🔥 ALWAYS attach stream ONCE
+    // 🔥 FIX: only set if different
+    if (video.srcObject !== stream) {
       video.srcObject = stream;
-
-      // 🔥 play directly (no metadata dependency)
-      video.play().catch(() => {});
-
-      const track = stream.getVideoTracks()[0];
-
-      if (track) {
-        const interval = setInterval(() => {
-          setCamOn(track.enabled);
-        }, 300);
-
-        return () => clearInterval(interval);
-      }
-    } else {
-      video.srcObject = null;
     }
+
+    video.onloadedmetadata = () => {
+      video.play().catch(() => {});
+    };
+
+    const track = stream.getVideoTracks()[0];
+    if (track) {
+      setCamOn(track.enabled);
+
+      // 🔥 listen to changes instead of interval
+      track.onmute = () => setCamOn(false);
+      track.onunmute = () => setCamOn(true);
+    }
+
+    return () => {
+      if (track) {
+        track.onmute = null;
+        track.onunmute = null;
+      }
+    };
   }, [stream]);
 
   return (
     <div className="w-full h-full relative bg-gray-900 rounded overflow-hidden flex items-center justify-center">
       
-      {/* 🔥 VIDEO ALWAYS RENDER */}
+      {/* VIDEO */}
       <video
         ref={videoRef}
         muted={muted}
@@ -41,7 +46,7 @@ const LocalVideo = ({ stream, muted = true }) => {
         className={`w-full h-full object-cover ${camOn ? "block" : "hidden"}`}
       />
 
-      {/* 🔥 CAMERA OFF UI OVERLAY */}
+      {/* CAMERA OFF */}
       {!camOn && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-gray-900">
           <div className="w-16 h-16 rounded-full bg-yellow-400 flex items-center justify-center text-black font-bold text-lg">

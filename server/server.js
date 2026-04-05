@@ -26,7 +26,6 @@ dotenv.config();
 const app = express();
 
 /* ================= CORS ================= */
-
 app.use(
   cors({
     origin: true,
@@ -37,12 +36,10 @@ app.use(
 app.use(express.json());
 
 /* ================= DATABASE INIT ================= */
-
 await connectDB();
 await initDB();
 
 /* ================= ROUTES ================= */
-
 app.use("/api/auth", authRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/editor", editorRoutes);
@@ -62,7 +59,6 @@ app.get("/", (req, res) => {
 });
 
 /* ================= SOCKET SETUP ================= */
-
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -83,7 +79,6 @@ io.on("connection", (socket) => {
 
   /* ================= ROOM ================= */
 
-  // 🔥 JOIN ROOM (editor sync)
   socket.on("join-room", ({ roomId }) => {
     socket.join(roomId);
 
@@ -92,14 +87,12 @@ io.on("connection", (socket) => {
     }
   });
 
-  // 🔥 LEAVE ROOM (FIXED)
   socket.on("leave-room", ({ roomId }) => {
     socket.leave(roomId);
   });
 
   /* ================= VIDEO CALL ================= */
 
-  // 🔥 START / JOIN VIDEO CALL
   socket.on("video-join-room", ({ roomId }) => {
     socket.join(roomId);
 
@@ -110,7 +103,6 @@ io.on("connection", (socket) => {
     callUsers[roomId].add(socket.id);
     activeCalls.add(roomId);
 
-    // ✅ ONLY video users
     const existingUsers = Array.from(callUsers[roomId]).filter(
       (id) => id !== socket.id
     );
@@ -124,7 +116,8 @@ io.on("connection", (socket) => {
     io.to(roomId).emit("call-started");
   });
 
-  // 🔥 OFFER
+  /* -------- SIGNALING -------- */
+
   socket.on("video-offer", ({ offer, to }) => {
     io.to(to).emit("video-offer", {
       offer,
@@ -132,7 +125,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 🔥 ANSWER
   socket.on("video-answer", ({ answer, to }) => {
     io.to(to).emit("video-answer", {
       answer,
@@ -140,7 +132,6 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 🔥 ICE
   socket.on("video-ice-candidate", ({ candidate, to }) => {
     io.to(to).emit("video-ice-candidate", {
       candidate,
@@ -148,16 +139,17 @@ io.on("connection", (socket) => {
     });
   });
 
-  // 🔥 LEAVE VIDEO CALL
+  /* -------- LEAVE CALL -------- */
+
   socket.on("video-leave-room", ({ roomId }) => {
     socket.leave(roomId);
 
-    socket.to(roomId).emit("video-user-left", {
-      socketId: socket.id,
-    });
-
     if (callUsers[roomId]) {
       callUsers[roomId].delete(socket.id);
+
+      socket.to(roomId).emit("video-user-left", {
+        socketId: socket.id,
+      });
 
       if (callUsers[roomId].size <= 1) {
         delete callUsers[roomId];
@@ -168,13 +160,19 @@ io.on("connection", (socket) => {
     }
   });
 
-  // 🔥 DISCONNECT
+  /* -------- DISCONNECT (FULL FIX) -------- */
+
   socket.on("disconnect", () => {
     console.log("❌ User disconnected:", socket.id);
 
     for (const roomId in callUsers) {
       if (callUsers[roomId].has(socket.id)) {
         callUsers[roomId].delete(socket.id);
+
+        // 🔥 ONLY ROOM USERS (FIXED)
+        socket.to(roomId).emit("video-user-left", {
+          socketId: socket.id,
+        });
 
         if (callUsers[roomId].size <= 1) {
           delete callUsers[roomId];
@@ -184,10 +182,6 @@ io.on("connection", (socket) => {
         }
       }
     }
-
-    socket.broadcast.emit("video-user-left", {
-      socketId: socket.id,
-    });
   });
 });
 
