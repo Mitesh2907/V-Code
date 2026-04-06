@@ -99,8 +99,8 @@ const VideoCallPanel = ({ onClose }) => {
     videoSocket.on("existing-users", async (users) => {
       console.log("EXISTING USERS:", users);
       for (const id of users) {
-        // 🔥 ADD THIS LINE
-        if (videoSocket.id > id) continue;
+        
+        if (videoSocket.id === id) continue;
 
         const peer = createPeer(id);
 
@@ -117,11 +117,11 @@ const VideoCallPanel = ({ onClose }) => {
     // New user joined
     videoSocket.on("video-user-joined", async ({ socketId }) => {
       console.log("USER JOINED:", socketId);
-      
+
       if (!streamRef.current) return;
 
-      // 🔥 ADD THIS LINE
-      if (videoSocket.id > socketId) return;
+     
+      if (videoSocket.id === socketId) return;
 
       const peer = createPeer(socketId);
 
