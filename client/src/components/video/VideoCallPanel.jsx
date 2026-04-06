@@ -161,9 +161,11 @@ const VideoCallPanel = ({ onClose }) => {
   if (!peer) return;
 
   try {
-    await peer.setRemoteDescription(
-      new RTCSessionDescription(answer)
-    );
+    if (!peer.currentRemoteDescription) {
+  await peer.setRemoteDescription(
+    new RTCSessionDescription(answer)
+  );
+}
   } catch (err) {
     console.error("Answer error:", err);
   }
@@ -209,7 +211,7 @@ const VideoCallPanel = ({ onClose }) => {
       leaveCall();
     });
 
-    return () => videoSocket.off();
+    return () => videoSocket.removeAllListeners();
   }, [roomId, createPeer]);
 
   /* ---------------- AUTO JOIN ---------------- */
