@@ -100,6 +100,9 @@ const VideoCallPanel = ({ onClose }) => {
     // Existing users
     videoSocket.on("existing-users", async (users) => {
       for (const id of users) {
+        // 🔥 ADD THIS LINE
+        if (videoSocket.id > id) continue;
+
         const peer = createPeer(id);
 
         const offer = await peer.createOffer();
@@ -115,6 +118,9 @@ const VideoCallPanel = ({ onClose }) => {
     // New user joined
     videoSocket.on("video-user-joined", async ({ socketId }) => {
       if (!streamRef.current) return;
+
+      // 🔥 ADD THIS LINE
+      if (videoSocket.id > socketId) return;
 
       const peer = createPeer(socketId);
 
@@ -156,20 +162,20 @@ const VideoCallPanel = ({ onClose }) => {
     });
 
     // Receive ANSWER
-   videoSocket.on("video-answer", async ({ answer, sender }) => {
-  const peer = peersRef.current[sender];
-  if (!peer) return;
+    videoSocket.on("video-answer", async ({ answer, sender }) => {
+      const peer = peersRef.current[sender];
+      if (!peer) return;
 
-  try {
-    if (!peer.currentRemoteDescription) {
-  await peer.setRemoteDescription(
-    new RTCSessionDescription(answer)
-  );
-}
-  } catch (err) {
-    console.error("Answer error:", err);
-  }
-});
+      try {
+        if (!peer.currentRemoteDescription) {
+          await peer.setRemoteDescription(
+            new RTCSessionDescription(answer)
+          );
+        }
+      } catch (err) {
+        console.error("Answer error:", err);
+      }
+    });
 
     // ICE Candidate
     videoSocket.on("video-ice-candidate", async ({ candidate, sender }) => {
