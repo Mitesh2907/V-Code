@@ -9,8 +9,6 @@ import { useParams } from "react-router-dom";
 const servers = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
 
     {
       urls: "turn:openrelay.metered.ca:80",
@@ -24,9 +22,9 @@ const servers = {
     },
 
     {
-      urls: "turn:numb.viagenie.ca",
-      username: "webrtc@live.com",
-      credential: "muazkh",
+      urls: "turn:relay1.expressturn.com:3478",
+      username: "efO6NQ9G5K8QH3K8",
+      credential: "4nXvK9e6p8y5z3h2",
     },
   ],
 };
@@ -49,9 +47,9 @@ const VideoCallPanel = ({ onClose }) => {
     if (peersRef.current[socketId]) return peersRef.current[socketId];
 
     const peer = new RTCPeerConnection({
-      iceServers: servers.iceServers,
-      iceTransportPolicy: "all",
-    });
+  iceServers: servers.iceServers,
+  iceTransportPolicy: "relay", 
+});
 
     // ICE candidate
     peer.onicecandidate = (event) => {
