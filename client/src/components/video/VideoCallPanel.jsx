@@ -8,12 +8,10 @@ import { useParams } from "react-router-dom";
 // 🔥 FINAL ICE CONFIG (IMPROVED)
 const servers = {
   iceServers: [
-    // ✅ multiple STUN
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
     { urls: "stun:stun2.l.google.com:19302" },
 
-    // ✅ TURN fallback
     {
       urls: "turn:openrelay.metered.ca:80",
       username: "openrelayproject",
@@ -23,6 +21,12 @@ const servers = {
       urls: "turn:openrelay.metered.ca:443?transport=tcp",
       username: "openrelayproject",
       credential: "openrelayproject",
+    },
+
+    {
+      urls: "turn:numb.viagenie.ca",
+      username: "webrtc@live.com",
+      credential: "muazkh",
     },
   ],
 };
@@ -152,31 +156,18 @@ const VideoCallPanel = ({ onClose }) => {
     });
 
     // Receive ANSWER
-    videoSocket.on("video-answer", async ({ answer, sender }) => {
-      const peer = peersRef.current[sender];
-      if (!peer) return;
+   videoSocket.on("video-answer", async ({ answer, sender }) => {
+  const peer = peersRef.current[sender];
+  if (!peer) return;
 
-      try {
-        if (peer.signalingState !== "have-local-offer") {
-          console.warn("Skipping answer, wrong state:", peer.signalingState);
-          return;
-        }
-
-        await peer.setRemoteDescription(
-          new RTCSessionDescription(answer)
-        );
-
-        // apply pending ICE
-        if (pendingCandidatesRef.current[sender]) {
-          for (const c of pendingCandidatesRef.current[sender]) {
-            await peer.addIceCandidate(new RTCIceCandidate(c));
-          }
-          delete pendingCandidatesRef.current[sender];
-        }
-      } catch (err) {
-        console.error("Answer error:", err);
-      }
-    });
+  try {
+    await peer.setRemoteDescription(
+      new RTCSessionDescription(answer)
+    );
+  } catch (err) {
+    console.error("Answer error:", err);
+  }
+});
 
     // ICE Candidate
     videoSocket.on("video-ice-candidate", async ({ candidate, sender }) => {
