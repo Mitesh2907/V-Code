@@ -97,6 +97,7 @@ const VideoCallPanel = ({ onClose }) => {
 
     // Existing users
     videoSocket.on("existing-users", async (users) => {
+      console.log("EXISTING USERS:", users);
       for (const id of users) {
         // 🔥 ADD THIS LINE
         if (videoSocket.id > id) continue;
@@ -115,6 +116,8 @@ const VideoCallPanel = ({ onClose }) => {
 
     // New user joined
     videoSocket.on("video-user-joined", async ({ socketId }) => {
+      console.log("USER JOINED:", socketId);
+      
       if (!streamRef.current) return;
 
       // 🔥 ADD THIS LINE
@@ -236,6 +239,7 @@ const VideoCallPanel = ({ onClose }) => {
 
       setCallState("in-call");
 
+      console.log("JOINING ROOM:", roomId);
       videoSocket.emit("video-join-room", { roomId });
     } catch (err) {
       console.error(err);
