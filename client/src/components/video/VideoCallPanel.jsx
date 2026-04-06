@@ -75,6 +75,12 @@ const VideoCallPanel = ({ onClose }) => {
 
     videoSocket.removeAllListeners();
 
+    // 🔥 FIX: CALL ENDED
+    videoSocket.on("call-ended", () => {
+      console.log("📴 Call ended received");
+      leaveCall(false); // emit=false (important)
+    });
+
     // Existing users → send offer
     videoSocket.on("existing-users", async (users) => {
       for (const id of users) {
@@ -130,11 +136,6 @@ const VideoCallPanel = ({ onClose }) => {
         delete updated[socketId];
         return updated;
       });
-    });
-
-    // 🔥 CALL ENDED FIX
-    videoSocket.on("call-ended", () => {
-      leaveCall(false);
     });
 
     return () => videoSocket.removeAllListeners();
@@ -209,19 +210,20 @@ const VideoCallPanel = ({ onClose }) => {
           {callState === "in-call" && (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
 
-              {/* 🔥 LOCAL USER */}
-              <LocalVideo 
-                stream={localStream} 
-                muted 
-                name="Mitesh Nayi" 
+              {/* LOCAL */}
+              <LocalVideo
+                stream={localStream}
+                muted
+                name="Mitesh Nayi"
               />
 
-              {/* 🔥 REMOTE USERS */}
+              {/* REMOTE */}
               {Object.entries(remoteStreams).map(([id, stream]) => (
-                <LocalVideo 
-                  key={id} 
-                  stream={stream} 
+                <LocalVideo
+                  key={id}
+                  stream={stream}
                   name="User"
+                  muted={false}
                 />
               ))}
 

@@ -164,17 +164,14 @@ io.on("connection", (socket) => {
   /* -------- 🔥 CALL ENDED FIX -------- */
 
   socket.on("call-ended", ({ roomId }) => {
-    console.log("📴 Call ended manually:", roomId);
+  console.log("📴 Call ended manually:", roomId);
 
-    if (callUsers[roomId]) {
-      delete callUsers[roomId];
-    }
+  // 🔥 ONLY notify others
+  socket.to(roomId).emit("call-ended");
 
-    activeCalls.delete(roomId);
-
-    // 🔥 notify all other users
-    socket.to(roomId).emit("call-ended");
-  });
+  // ❌ DO NOT delete users here
+  // ❌ DO NOT clear activeCalls
+});
 
   /* -------- DISCONNECT -------- */
 

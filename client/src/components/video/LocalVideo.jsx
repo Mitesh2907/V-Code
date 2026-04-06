@@ -8,7 +8,7 @@ const LocalVideo = ({
   const videoRef = useRef(null);
   const [camOn, setCamOn] = useState(true);
 
-  // 🔥 GET INITIALS (FIRST + LAST)
+  // 🔥 GET INITIALS
   const getInitials = (fullName) => {
     if (!fullName) return "U";
 
@@ -37,19 +37,15 @@ const LocalVideo = ({
     };
 
     const track = stream.getVideoTracks()[0];
+
     if (track) {
-      setCamOn(track.enabled);
+      // 🔥 FIX: track.enabled detect with interval
+      const interval = setInterval(() => {
+        setCamOn(track.enabled);
+      }, 300);
 
-      track.onmute = () => setCamOn(false);
-      track.onunmute = () => setCamOn(true);
+      return () => clearInterval(interval);
     }
-
-    return () => {
-      if (track) {
-        track.onmute = null;
-        track.onunmute = null;
-      }
-    };
   }, [stream]);
 
   return (
@@ -68,12 +64,12 @@ const LocalVideo = ({
       {!camOn && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-gray-900">
 
-          {/* INITIALS CIRCLE */}
+          {/* INITIALS */}
           <div className="w-16 h-16 rounded-full bg-yellow-400 flex items-center justify-center text-black font-bold text-lg">
             {getInitials(name)}
           </div>
 
-          {/* FULL NAME */}
+          {/* NAME */}
           <span className="text-sm mt-2">{name}</span>
 
           <span className="text-xs opacity-60">Camera Off</span>
