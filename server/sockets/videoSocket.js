@@ -47,10 +47,22 @@ const videoSocket = (io, socket) => {
 
     const room = io.sockets.adapter.rooms.get(roomId);
 
+    // 🔥 if room empty → end call
     if (!room || room.size === 0) {
       activeCalls.delete(roomId);
       io.to(roomId).emit("call-ended");
     }
+  });
+
+  /* ---------------- 🔥 CALL ENDED FIX ---------------- */
+  socket.on("call-ended", ({ roomId }) => {
+    console.log("📴 Call ended in room:", roomId);
+
+    // 🔥 notify all other users
+    socket.to(roomId).emit("call-ended");
+
+    // 🔥 remove active call
+    activeCalls.delete(roomId);
   });
 
   /* ---------------- OFFER ---------------- */
@@ -81,8 +93,11 @@ const videoSocket = (io, socket) => {
   socket.on("disconnect", () => {
     console.log("❌ Disconnected:", socket.id);
 
-    socket.broadcast.emit("video-user-left", {
-      socketId: socket.id,
+    // 🔥 notify only rooms this socket was part of
+    socket.rooms.forEach((roomId) => {
+      socket.to(roomId).emit("video-user-left", {
+        socketId: socket.id,
+      });
     });
   });
 };

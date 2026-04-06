@@ -151,7 +151,8 @@ io.on("connection", (socket) => {
         socketId: socket.id,
       });
 
-      if (callUsers[roomId].size <= 1) {
+      // 🔥 FIX: ONLY END WHEN 0 USERS
+      if (callUsers[roomId].size === 0) {
         delete callUsers[roomId];
         activeCalls.delete(roomId);
 
@@ -160,7 +161,22 @@ io.on("connection", (socket) => {
     }
   });
 
-  /* -------- DISCONNECT (FULL FIX) -------- */
+  /* -------- 🔥 CALL ENDED FIX -------- */
+
+  socket.on("call-ended", ({ roomId }) => {
+    console.log("📴 Call ended manually:", roomId);
+
+    if (callUsers[roomId]) {
+      delete callUsers[roomId];
+    }
+
+    activeCalls.delete(roomId);
+
+    // 🔥 notify all other users
+    socket.to(roomId).emit("call-ended");
+  });
+
+  /* -------- DISCONNECT -------- */
 
   socket.on("disconnect", () => {
     console.log("❌ User disconnected:", socket.id);
@@ -169,12 +185,12 @@ io.on("connection", (socket) => {
       if (callUsers[roomId].has(socket.id)) {
         callUsers[roomId].delete(socket.id);
 
-        // 🔥 ONLY ROOM USERS (FIXED)
         socket.to(roomId).emit("video-user-left", {
           socketId: socket.id,
         });
 
-        if (callUsers[roomId].size <= 1) {
+        // 🔥 FIX: ONLY END WHEN 0 USERS
+        if (callUsers[roomId].size === 0) {
           delete callUsers[roomId];
           activeCalls.delete(roomId);
 

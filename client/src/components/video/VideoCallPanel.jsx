@@ -5,32 +5,20 @@ import toast from "react-hot-toast";
 import videoSocket from "../../configs/videoSocket";
 import { useParams } from "react-router-dom";
 
-// 🔥 FINAL ICE CONFIG
+// 🔥 ICE CONFIG (Metered TURN)
 const servers = {
   iceServers: [
-      {
-        urls: "stun:global.relay.metered.ca:80",
-      },
-      {
-        urls: "turn:global.relay.metered.ca:80",
-        username: "15f6cc41a2bd1b76028ffef3",
-        credential: "NYE4C+xR1OR+v9Ev",
-      },
-      {
-        urls: "turn:global.relay.metered.ca:80?transport=tcp",
-        username: "15f6cc41a2bd1b76028ffef3",
-        credential: "NYE4C+xR1OR+v9Ev",
-      },
-      {
-        urls: "turn:global.relay.metered.ca:443",
-        username: "15f6cc41a2bd1b76028ffef3",
-        credential: "NYE4C+xR1OR+v9Ev",
-      },
-      {
-        urls: "turns:global.relay.metered.ca:443?transport=tcp",
-        username: "15f6cc41a2bd1b76028ffef3",
-        credential: "NYE4C+xR1OR+v9Ev",
-      },
+    { urls: "stun:global.relay.metered.ca:80" },
+    {
+      urls: "turn:global.relay.metered.ca:80",
+      username: "15f6cc41a2bd1b76028ffef3",
+      credential: "NYE4C+xR1OR+v9Ev",
+    },
+    {
+      urls: "turn:global.relay.metered.ca:443",
+      username: "15f6cc41a2bd1b76028ffef3",
+      credential: "NYE4C+xR1OR+v9Ev",
+    },
   ],
 };
 
@@ -45,7 +33,6 @@ const VideoCallPanel = ({ onClose }) => {
 
   const peersRef = useRef({});
   const streamRef = useRef(null);
-  const pendingCandidatesRef = useRef({});
 
   /* ---------------- CREATE PEER ---------------- */
   const createPeer = useCallback((socketId) => {
@@ -53,7 +40,7 @@ const VideoCallPanel = ({ onClose }) => {
 
     const peer = new RTCPeerConnection({
       iceServers: servers.iceServers,
-      iceTransportPolicy: "relay", // 🔥 FORCE TURN
+      iceTransportPolicy: "relay",
     });
 
     peer.onicecandidate = (event) => {
@@ -65,18 +52,11 @@ const VideoCallPanel = ({ onClose }) => {
       }
     };
 
-    peer.oniceconnectionstatechange = () => {
-      console.log("ICE STATE:", socketId, peer.iceConnectionState);
-    };
-
     peer.ontrack = (event) => {
-      setRemoteStreams((prev) => {
-        if (prev[socketId]) return prev;
-        return {
-          ...prev,
-          [socketId]: event.streams[0],
-        };
-      });
+      setRemoteStreams((prev) => ({
+        ...prev,
+        [socketId]: event.streams[0],
+      }));
     };
 
     if (streamRef.current) {
@@ -93,97 +73,52 @@ const VideoCallPanel = ({ onClose }) => {
   useEffect(() => {
     if (!roomId) return;
 
-    videoSocket.off();
+    videoSocket.removeAllListeners();
 
-    // 🔥 EXISTING USERS → ONLY THEY SEND OFFER
+    // Existing users → send offer
     videoSocket.on("existing-users", async (users) => {
-      console.log("EXISTING USERS:", users);
-
       for (const id of users) {
         const peer = createPeer(id);
 
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
 
-        videoSocket.emit("video-offer", {
-          offer,
-          to: id,
-        });
+        videoSocket.emit("video-offer", { offer, to: id });
       }
     });
 
-    // 🔥 NEW USER → DO NOTHING (IMPORTANT FIX)
-    videoSocket.on("video-user-joined", async ({ socketId }) => {
-      console.log("USER JOINED:", socketId);
-
-      if (!streamRef.current) return;
-
-      // ❌ NO OFFER HERE
-    });
-
-    // 🔥 RECEIVE OFFER
+    // Receive offer
     videoSocket.on("video-offer", async ({ offer, sender }) => {
       let peer = peersRef.current[sender];
       if (!peer) peer = createPeer(sender);
 
-      try {
-        await peer.setRemoteDescription(new RTCSessionDescription(offer));
+      await peer.setRemoteDescription(new RTCSessionDescription(offer));
 
-        if (pendingCandidatesRef.current[sender]) {
-          for (const c of pendingCandidatesRef.current[sender]) {
-            await peer.addIceCandidate(new RTCIceCandidate(c));
-          }
-          delete pendingCandidatesRef.current[sender];
-        }
+      const answer = await peer.createAnswer();
+      await peer.setLocalDescription(answer);
 
-        const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-
-        videoSocket.emit("video-answer", {
-          answer,
-          to: sender,
-        });
-      } catch (err) {
-        console.error("Offer error:", err);
-      }
+      videoSocket.emit("video-answer", { answer, to: sender });
     });
 
-    // 🔥 RECEIVE ANSWER
+    // Receive answer
     videoSocket.on("video-answer", async ({ answer, sender }) => {
       const peer = peersRef.current[sender];
       if (!peer) return;
 
-      try {
-        if (!peer.currentRemoteDescription) {
-          await peer.setRemoteDescription(
-            new RTCSessionDescription(answer)
-          );
-        }
-      } catch (err) {
-        console.error("Answer error:", err);
-      }
+      await peer.setRemoteDescription(
+        new RTCSessionDescription(answer)
+      );
     });
 
-    // 🔥 ICE CANDIDATE
+    // ICE
     videoSocket.on("video-ice-candidate", async ({ candidate, sender }) => {
       const peer = peersRef.current[sender];
       if (!peer) return;
 
-      try {
-        if (peer.remoteDescription) {
-          await peer.addIceCandidate(new RTCIceCandidate(candidate));
-        } else {
-          if (!pendingCandidatesRef.current[sender]) {
-            pendingCandidatesRef.current[sender] = [];
-          }
-          pendingCandidatesRef.current[sender].push(candidate);
-        }
-      } catch (err) {
-        console.error("ICE error:", err);
-      }
+      await peer.addIceCandidate(new RTCIceCandidate(candidate));
     });
 
-    // 🔥 USER LEFT
+    // User left
     videoSocket.on("video-user-left", ({ socketId }) => {
       if (peersRef.current[socketId]) {
         peersRef.current[socketId].close();
@@ -195,21 +130,15 @@ const VideoCallPanel = ({ onClose }) => {
         delete updated[socketId];
         return updated;
       });
-
-      delete pendingCandidatesRef.current[socketId];
     });
 
+    // 🔥 CALL ENDED FIX
     videoSocket.on("call-ended", () => {
-      leaveCall();
+      leaveCall(false);
     });
 
     return () => videoSocket.removeAllListeners();
   }, [roomId, createPeer]);
-
-  /* ---------------- AUTO JOIN ---------------- */
-  useEffect(() => {
-    joinCall();
-  }, []);
 
   /* ---------------- JOIN ---------------- */
   const joinCall = async () => {
@@ -221,30 +150,33 @@ const VideoCallPanel = ({ onClose }) => {
 
       streamRef.current = stream;
       setLocalStream(stream);
-
       setCallState("in-call");
 
-      console.log("JOINING ROOM:", roomId);
       videoSocket.emit("video-join-room", { roomId });
     } catch (err) {
-      console.error(err);
       toast.error("Camera permission denied");
     }
   };
 
+  useEffect(() => {
+    joinCall();
+  }, []);
+
   /* ---------------- LEAVE ---------------- */
-  const leaveCall = () => {
+  const leaveCall = (emit = true) => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
 
     Object.values(peersRef.current).forEach((p) => p.close());
     peersRef.current = {};
-    pendingCandidatesRef.current = {};
 
     setRemoteStreams({});
     setLocalStream(null);
     setCallState("idle");
 
-    videoSocket.emit("video-leave-room", { roomId });
+    if (emit) {
+      videoSocket.emit("call-ended", { roomId });
+      videoSocket.emit("video-leave-room", { roomId });
+    }
 
     onClose && onClose();
   };
@@ -270,17 +202,29 @@ const VideoCallPanel = ({ onClose }) => {
 
       <div className="relative max-w-6xl w-full mx-4 my-8 bg-gray-900 rounded-lg overflow-hidden flex flex-col">
         <div className="p-3 border-b border-gray-700 text-gray-200">
-          Multi User Video Call
+          Video Call
         </div>
 
         <div className="p-4 bg-gray-800">
           {callState === "in-call" && (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <LocalVideo stream={localStream} muted />
 
+              {/* 🔥 LOCAL USER */}
+              <LocalVideo 
+                stream={localStream} 
+                muted 
+                name="Mitesh Nayi" 
+              />
+
+              {/* 🔥 REMOTE USERS */}
               {Object.entries(remoteStreams).map(([id, stream]) => (
-                <LocalVideo key={id} stream={stream} muted={false} />
+                <LocalVideo 
+                  key={id} 
+                  stream={stream} 
+                  name="User"
+                />
               ))}
+
             </div>
           )}
         </div>
