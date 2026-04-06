@@ -5,7 +5,7 @@ import toast from "react-hot-toast";
 import videoSocket from "../../configs/videoSocket";
 import { useParams } from "react-router-dom";
 
-// 🔥 FINAL ICE CONFIG (IMPROVED)
+// 🔥 FINAL ICE CONFIG
 const servers = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -20,7 +20,6 @@ const servers = {
       username: "openrelayproject",
       credential: "openrelayproject",
     },
-
     {
       urls: "turn:relay1.expressturn.com:3478",
       username: "efO6NQ9G5K8QH3K8",
@@ -47,11 +46,10 @@ const VideoCallPanel = ({ onClose }) => {
     if (peersRef.current[socketId]) return peersRef.current[socketId];
 
     const peer = new RTCPeerConnection({
-  iceServers: servers.iceServers,
-  iceTransportPolicy: "relay", 
-});
+      iceServers: servers.iceServers,
+      iceTransportPolicy: "relay", // 🔥 FORCE TURN
+    });
 
-    // ICE candidate
     peer.onicecandidate = (event) => {
       if (event.candidate) {
         videoSocket.emit("video-ice-candidate", {
@@ -61,16 +59,13 @@ const VideoCallPanel = ({ onClose }) => {
       }
     };
 
-    // 🔥 DEBUG ICE STATE
     peer.oniceconnectionstatechange = () => {
       console.log("ICE STATE:", socketId, peer.iceConnectionState);
     };
 
-    // Remote stream
     peer.ontrack = (event) => {
       setRemoteStreams((prev) => {
         if (prev[socketId]) return prev;
-
         return {
           ...prev,
           [socketId]: event.streams[0],
@@ -78,7 +73,6 @@ const VideoCallPanel = ({ onClose }) => {
       });
     };
 
-    // add local tracks
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => {
         peer.addTrack(track, streamRef.current);
@@ -95,13 +89,11 @@ const VideoCallPanel = ({ onClose }) => {
 
     videoSocket.off();
 
-    // Existing users
+    // 🔥 EXISTING USERS → ONLY THEY SEND OFFER
     videoSocket.on("existing-users", async (users) => {
       console.log("EXISTING USERS:", users);
-      for (const id of users) {
-        
-        if (videoSocket.id === id) continue;
 
+      for (const id of users) {
         const peer = createPeer(id);
 
         const offer = await peer.createOffer();
@@ -114,27 +106,16 @@ const VideoCallPanel = ({ onClose }) => {
       }
     });
 
-    // New user joined
+    // 🔥 NEW USER → DO NOTHING (IMPORTANT FIX)
     videoSocket.on("video-user-joined", async ({ socketId }) => {
       console.log("USER JOINED:", socketId);
 
       if (!streamRef.current) return;
 
-     
-      if (videoSocket.id === socketId) return;
-
-      const peer = createPeer(socketId);
-
-      const offer = await peer.createOffer();
-      await peer.setLocalDescription(offer);
-
-      videoSocket.emit("video-offer", {
-        offer,
-        to: socketId,
-      });
+      // ❌ NO OFFER HERE
     });
 
-    // Receive OFFER
+    // 🔥 RECEIVE OFFER
     videoSocket.on("video-offer", async ({ offer, sender }) => {
       let peer = peersRef.current[sender];
       if (!peer) peer = createPeer(sender);
@@ -142,7 +123,6 @@ const VideoCallPanel = ({ onClose }) => {
       try {
         await peer.setRemoteDescription(new RTCSessionDescription(offer));
 
-        // apply pending ICE
         if (pendingCandidatesRef.current[sender]) {
           for (const c of pendingCandidatesRef.current[sender]) {
             await peer.addIceCandidate(new RTCIceCandidate(c));
@@ -162,7 +142,7 @@ const VideoCallPanel = ({ onClose }) => {
       }
     });
 
-    // Receive ANSWER
+    // 🔥 RECEIVE ANSWER
     videoSocket.on("video-answer", async ({ answer, sender }) => {
       const peer = peersRef.current[sender];
       if (!peer) return;
@@ -178,7 +158,7 @@ const VideoCallPanel = ({ onClose }) => {
       }
     });
 
-    // ICE Candidate
+    // 🔥 ICE CANDIDATE
     videoSocket.on("video-ice-candidate", async ({ candidate, sender }) => {
       const peer = peersRef.current[sender];
       if (!peer) return;
@@ -197,7 +177,7 @@ const VideoCallPanel = ({ onClose }) => {
       }
     });
 
-    // User left
+    // 🔥 USER LEFT
     videoSocket.on("video-user-left", ({ socketId }) => {
       if (peersRef.current[socketId]) {
         peersRef.current[socketId].close();
@@ -213,7 +193,6 @@ const VideoCallPanel = ({ onClose }) => {
       delete pendingCandidatesRef.current[socketId];
     });
 
-    // Call ended
     videoSocket.on("call-ended", () => {
       leaveCall();
     });
