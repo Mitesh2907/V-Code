@@ -8,23 +8,29 @@ import { useParams } from "react-router-dom";
 // 🔥 FINAL ICE CONFIG
 const servers = {
   iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-
-    {
-      urls: "turn:openrelay.metered.ca:80",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-    {
-      urls: "turn:openrelay.metered.ca:443?transport=tcp",
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-    {
-      urls: "turn:relay1.expressturn.com:3478",
-      username: "efO6NQ9G5K8QH3K8",
-      credential: "4nXvK9e6p8y5z3h2",
-    },
+      {
+        urls: "stun:global.relay.metered.ca:80",
+      },
+      {
+        urls: "turn:global.relay.metered.ca:80",
+        username: "15f6cc41a2bd1b76028ffef3",
+        credential: "NYE4C+xR1OR+v9Ev",
+      },
+      {
+        urls: "turn:global.relay.metered.ca:80?transport=tcp",
+        username: "15f6cc41a2bd1b76028ffef3",
+        credential: "NYE4C+xR1OR+v9Ev",
+      },
+      {
+        urls: "turn:global.relay.metered.ca:443",
+        username: "15f6cc41a2bd1b76028ffef3",
+        credential: "NYE4C+xR1OR+v9Ev",
+      },
+      {
+        urls: "turns:global.relay.metered.ca:443?transport=tcp",
+        username: "15f6cc41a2bd1b76028ffef3",
+        credential: "NYE4C+xR1OR+v9Ev",
+      },
   ],
 };
 
