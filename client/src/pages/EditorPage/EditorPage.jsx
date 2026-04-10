@@ -251,25 +251,27 @@ console.log(result);`);
 
 
   useEffect(() => {
-    videoSocket.on("call-started", () => {
-      console.log("Call started");
-      setIsCallActive(true);
-    });
+  const handleCallStarted = () => {
+    console.log("Call started");
+    setIsCallActive(true);
+  };
 
-    videoSocket.on("call-ended", () => {
-      console.log("Call ended");
+  const handleCallEnded = () => {
+    console.log("Call ended");
 
-      setIsCallActive(false);
+    setIsCallActive(false);
+    setShowVideoCall(false);
+    setAutoJoin(false);
+  };
 
-      setShowVideoCall(false);   // close panel
-      setAutoJoin(false);        // reset join state
-    });
+  videoSocket.on("call-started", handleCallStarted);
+  videoSocket.on("call-ended", handleCallEnded);
 
-    return () => {
-      videoSocket.off("call-started");
-      videoSocket.off("call-ended");
-    };
-  }, []);
+  return () => {
+    videoSocket.off("call-started", handleCallStarted);
+    videoSocket.off("call-ended", handleCallEnded);
+  };
+}, []);
 
   useEffect(() => {
     const handleKeyDown = (e) => {

@@ -76,17 +76,18 @@ const VideoCallPanel = ({ onClose }) => {
     // videoSocket.removeAllListeners();
 
     videoSocket.off("call-ended");
-  videoSocket.off("existing-users");
-  videoSocket.off("video-offer");
-  videoSocket.off("video-answer");
-  videoSocket.off("video-ice-candidate");
-  videoSocket.off("video-user-left");
+    videoSocket.off("existing-users");
+    videoSocket.off("video-offer");
+    videoSocket.off("video-answer");
+    videoSocket.off("video-ice-candidate");
+    videoSocket.off("video-user-left");
 
-    // 🔥 FIX: CALL ENDED
-    videoSocket.on("call-ended", () => {
+    const handleCallEnded = () => {
       console.log("📴 Call ended received");
-      leaveCall(false); // emit=false (important)
-    });
+      leaveCall(false);
+    };
+
+    videoSocket.on("call-ended", handleCallEnded);
 
     // Existing users → send offer
     videoSocket.on("existing-users", async (users) => {
@@ -145,7 +146,14 @@ const VideoCallPanel = ({ onClose }) => {
       });
     });
 
-    return () => videoSocket.removeAllListeners();
+    return () => {
+      videoSocket.off("call-ended", handleCallEnded);
+      videoSocket.off("existing-users");
+      videoSocket.off("video-offer");
+      videoSocket.off("video-answer");
+      videoSocket.off("video-ice-candidate");
+      videoSocket.off("video-user-left");
+    };
   }, [roomId, createPeer]);
 
   /* ---------------- JOIN ---------------- */
