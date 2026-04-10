@@ -194,7 +194,7 @@ const VideoCallPanel = ({ onClose }) => {
       videoSocket.emit("video-leave-room", { roomId });
     }
 
-    onClose && onClose();
+   onClose && onClose(true);
   };
 
   /* ---------------- TOGGLE ---------------- */

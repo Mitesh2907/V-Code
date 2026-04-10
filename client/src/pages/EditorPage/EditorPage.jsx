@@ -860,14 +860,19 @@ console.log(result);`);
 
       {/* Video Call Panel */}
       {showVideoCall && (
-        <VideoCallPanel
-          onClose={() => {
-            setShowVideoCall(false);
-            setAutoJoin(false); // reset
-          }}
-          autoJoin={autoJoin}
-        />
-      )}
+  <VideoCallPanel
+    onClose={(ended) => {
+      setShowVideoCall(false);
+      setAutoJoin(false);
+
+      
+      if (ended) {
+        setIsCallActive(false);
+      }
+    }}
+    autoJoin={autoJoin}
+  />
+)}
       {/* Chat Panel */}
       {showChat && (
         <ChatPanel
