@@ -41,27 +41,27 @@ const videoSocket = (io, socket) => {
   socket.on("video-leave-room", ({ roomId }) => {
     socket.leave(roomId);
 
+    // 🔥 notify others user left
     socket.to(roomId).emit("video-user-left", {
       socketId: socket.id,
     });
 
     const room = io.sockets.adapter.rooms.get(roomId);
 
-    // 🔥 if room empty → end call
+    // 🔥 ONLY CLEANUP (NO call-ended here)
     if (!room || room.size === 0) {
       activeCalls.delete(roomId);
-      io.to(roomId).emit("call-ended");
     }
   });
 
-  /* ---------------- 🔥 CALL ENDED FIX ---------------- */
+  /* ---------------- 🔥 CALL ENDED ---------------- */
   socket.on("call-ended", ({ roomId }) => {
     console.log("📴 Call ended in room:", roomId);
 
-    // 🔥 notify all other users
-    socket.to(roomId).emit("call-ended");
+    // 🔥 send to ALL users (including sender)
+    io.to(roomId).emit("call-ended");
 
-    // 🔥 remove active call
+    // 🔥 cleanup
     activeCalls.delete(roomId);
   });
 
@@ -93,7 +93,6 @@ const videoSocket = (io, socket) => {
   socket.on("disconnect", () => {
     console.log("❌ Disconnected:", socket.id);
 
-    // 🔥 notify only rooms this socket was part of
     socket.rooms.forEach((roomId) => {
       socket.to(roomId).emit("video-user-left", {
         socketId: socket.id,

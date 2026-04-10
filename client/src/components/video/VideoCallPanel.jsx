@@ -73,7 +73,14 @@ const VideoCallPanel = ({ onClose }) => {
   useEffect(() => {
     if (!roomId) return;
 
-    videoSocket.removeAllListeners();
+    // videoSocket.removeAllListeners();
+
+    videoSocket.off("call-ended");
+  videoSocket.off("existing-users");
+  videoSocket.off("video-offer");
+  videoSocket.off("video-answer");
+  videoSocket.off("video-ice-candidate");
+  videoSocket.off("video-user-left");
 
     // 🔥 FIX: CALL ENDED
     videoSocket.on("call-ended", () => {
