@@ -258,7 +258,11 @@ console.log(result);`);
 
     videoSocket.on("call-ended", () => {
       console.log("Call ended");
+
       setIsCallActive(false);
+
+      setShowVideoCall(false);   // close panel
+      setAutoJoin(false);        // reset join state
     });
 
     return () => {
