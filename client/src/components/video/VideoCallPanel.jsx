@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import VideoControls from "./VideoControls";
 import LocalVideo from "./LocalVideo";
@@ -9,48 +8,48 @@ import { useParams } from "react-router-dom";
 // 🔥 ICE CONFIG (Metered TURN)
 const servers = {
   iceServers: [
-  // 🟢 FREE GOOGLE STUN (IMPORTANT)
-  { urls: "stun:stun.l.google.com:19302" },
+    // 🟢 FREE GOOGLE STUN (IMPORTANT)
+    { urls: "stun:stun.l.google.com:19302" },
 
-  // existing STUN (optional)
-  { urls: "stun:global.relay.metered.ca:80" },
+    // existing STUN (optional)
+    { urls: "stun:global.relay.metered.ca:80" },
 
-  // TURN (fallback)
-  {
-    urls: "turn:global.relay.metered.ca:80",
-    username: "15f6cc41a2bd1b76028ffef3",
-    credential: "NYE4C+xR1OR+v9Ev",
-  },
-  {
-    urls: "turn:global.relay.metered.ca:443",
-    username: "15f6cc41a2bd1b76028ffef3",
-    credential: "NYE4C+xR1OR+v9Ev",
-  },
-],
-// iceServers: [
-//     { urls: "stun:global.relay.metered.ca:80" },
-//     {
-//       urls: "turn:global.relay.metered.ca:80",
-//       username: "15f6cc41a2bd1b76028ffef3",
-//       credential: "NYE4C+xR1OR+v9Ev",
-//     },
-//     {
-//       urls: "turn:global.relay.metered.ca:443",
-//       username: "15f6cc41a2bd1b76028ffef3",
-//       credential: "NYE4C+xR1OR+v9Ev",
-//     },
-//   ],
+    // TURN (fallback)
+    {
+      urls: "turn:global.relay.metered.ca:80",
+      username: "15f6cc41a2bd1b76028ffef3",
+      credential: "NYE4C+xR1OR+v9Ev",
+    },
+    {
+      urls: "turn:global.relay.metered.ca:443",
+      username: "15f6cc41a2bd1b76028ffef3",
+      credential: "NYE4C+xR1OR+v9Ev",
+    },
+  ],
+  // iceServers: [
+  //     { urls: "stun:global.relay.metered.ca:80" },
+  //     {
+  //       urls: "turn:global.relay.metered.ca:80",
+  //       username: "15f6cc41a2bd1b76028ffef3",
+  //       credential: "NYE4C+xR1OR+v9Ev",
+  //     },
+  //     {
+  //       urls: "turn:global.relay.metered.ca:443",
+  //       username: "15f6cc41a2bd1b76028ffef3",
+  //       credential: "NYE4C+xR1OR+v9Ev",
+  //     },
+  //   ],
 };
 
 const VideoCallPanel = ({ onClose }) => {
   const { roomId } = useParams();
-
+  const [users, setUsers] = useState({});
   const [callState, setCallState] = useState("idle");
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState({});
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
-
+  const [camStatus, setCamStatus] = useState({});
   const peersRef = useRef({});
   const streamRef = useRef(null);
 
@@ -102,6 +101,39 @@ const VideoCallPanel = ({ onClose }) => {
     videoSocket.off("video-ice-candidate");
     videoSocket.off("video-user-left");
 
+    videoSocket.on("video-user-joined", async ({ socketId, name, camOn }) => {
+  console.log("USER JOINED:", socketId, name, camOn);
+
+  setUsers((prev) => ({
+    ...prev,
+    [socketId]: name || "User",
+  }));
+
+  setCamStatus((prev) => ({
+    ...prev,
+    [socketId]: camOn ?? true,
+  }));
+
+  // 🔥 IMPORTANT: CREATE PEER + SEND OFFER
+  const peer = createPeer(socketId);
+
+  const offer = await peer.createOffer();
+  await peer.setLocalDescription(offer);
+
+  videoSocket.emit("video-offer", {
+    offer,
+    to: socketId,
+  });
+});
+
+    videoSocket.on("camera-toggle", ({ socketId, camOn }) => {
+      console.log("CAM TOGGLE:", socketId, camOn);
+      setCamStatus((prev) => ({
+        ...prev,
+        [socketId]: camOn ?? true,
+      }));
+    });
+
     const handleCallEnded = () => {
       console.log("📴 Call ended received");
       leaveCall(false);
@@ -111,13 +143,28 @@ const VideoCallPanel = ({ onClose }) => {
 
     // Existing users → send offer
     videoSocket.on("existing-users", async (users) => {
-      for (const id of users) {
-        const peer = createPeer(id);
+      console.log("EXISTING USERS:", users);
+      // 🔥 SET USERS + CAMERA STATE
+      users.forEach(({ socketId, name, camOn }) => {
+        setUsers((prev) => ({
+          ...prev,
+          [socketId]: name,
+        }));
+
+        setCamStatus((prev) => ({
+          ...prev,
+          [socketId]: camOn ?? true,
+        }));
+      });
+
+      // 🔥 CREATE PEERS
+      for (const { socketId } of users) {
+        const peer = createPeer(socketId);
 
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
 
-        videoSocket.emit("video-offer", { offer, to: id });
+        videoSocket.emit("video-offer", { offer, to: socketId });
       }
     });
 
@@ -169,10 +216,12 @@ const VideoCallPanel = ({ onClose }) => {
     return () => {
       videoSocket.off("call-ended", handleCallEnded);
       videoSocket.off("existing-users");
+      videoSocket.off("video-user-joined");
       videoSocket.off("video-offer");
       videoSocket.off("video-answer");
       videoSocket.off("video-ice-candidate");
       videoSocket.off("video-user-left");
+      videoSocket.off("camera-toggle");
     };
   }, [roomId, createPeer]);
 
@@ -188,7 +237,10 @@ const VideoCallPanel = ({ onClose }) => {
       setLocalStream(stream);
       setCallState("in-call");
 
-      videoSocket.emit("video-join-room", { roomId });
+      videoSocket.emit("video-join-room", {
+        roomId,
+        name: "Mitesh Nayi",
+      });
     } catch (err) {
       toast.error("Camera permission denied");
     }
@@ -214,7 +266,7 @@ const VideoCallPanel = ({ onClose }) => {
       videoSocket.emit("video-leave-room", { roomId });
     }
 
-   onClose && onClose(true);
+    onClose && onClose(true);
   };
 
   /* ---------------- TOGGLE ---------------- */
@@ -228,7 +280,14 @@ const VideoCallPanel = ({ onClose }) => {
   const toggleCam = () => {
     streamRef.current?.getVideoTracks().forEach((t) => {
       t.enabled = !t.enabled;
+
+      // SEND CAMERA STATE
+      videoSocket.emit("camera-toggle", {
+        roomId,
+        camOn: t.enabled,
+      });
     });
+
     setCamOn((p) => !p);
   };
 
@@ -253,14 +312,19 @@ const VideoCallPanel = ({ onClose }) => {
               />
 
               {/* REMOTE */}
-              {Object.entries(remoteStreams).map(([id, stream]) => (
-                <LocalVideo
-                  key={id}
-                  stream={stream}
-                  name="User"
-                  muted={false}
-                />
-              ))}
+              {Object.entries(remoteStreams).map(([id, stream]) => {
+                console.log("RENDER:", id, users[id], camStatus[id]); 
+
+                return (
+                  <LocalVideo
+                    key={id}
+                    stream={stream}
+                    name={users[id] || "User"}
+                    muted={false}
+                    camOn={camStatus[id] ?? true}
+                  />
+                );
+              })}
 
             </div>
           )}
