@@ -8,42 +8,42 @@ import { useParams } from "react-router-dom";
 // 🔥 ICE CONFIG (Metered TURN)
 const servers = {
   iceServers: [
-  // 🟢 FREE GOOGLE STUN (IMPORTANT)
-  { urls: "stun:stun.l.google.com:19302" },
+    // 🟢 FREE GOOGLE STUN (IMPORTANT)
+    { urls: "stun:stun.l.google.com:19302" },
 
-  // existing STUN (optional)
-  { urls: "stun:global.relay.metered.ca:80" },
+    // existing STUN (optional)
+    { urls: "stun:global.relay.metered.ca:80" },
 
-  // TURN (fallback)
-  {
-    urls: "turn:global.relay.metered.ca:80",
-    username: "15f6cc41a2bd1b76028ffef3",
-    credential: "NYE4C+xR1OR+v9Ev",
-  },
-  {
-    urls: "turn:global.relay.metered.ca:443",
-    username: "15f6cc41a2bd1b76028ffef3",
-    credential: "NYE4C+xR1OR+v9Ev",
-  },
-],
-// iceServers: [
-//     { urls: "stun:global.relay.metered.ca:80" },
-//     {
-//       urls: "turn:global.relay.metered.ca:80",
-//       username: "15f6cc41a2bd1b76028ffef3",
-//       credential: "NYE4C+xR1OR+v9Ev",
-//     },
-//     {
-//       urls: "turn:global.relay.metered.ca:443",
-//       username: "15f6cc41a2bd1b76028ffef3",
-//       credential: "NYE4C+xR1OR+v9Ev",
-//     },
-//   ],
+    // TURN (fallback)
+    {
+      urls: "turn:global.relay.metered.ca:80",
+      username: "15f6cc41a2bd1b76028ffef3",
+      credential: "NYE4C+xR1OR+v9Ev",
+    },
+    {
+      urls: "turn:global.relay.metered.ca:443",
+      username: "15f6cc41a2bd1b76028ffef3",
+      credential: "NYE4C+xR1OR+v9Ev",
+    },
+  ],
+  // iceServers: [
+  //     { urls: "stun:global.relay.metered.ca:80" },
+  //     {
+  //       urls: "turn:global.relay.metered.ca:80",
+  //       username: "15f6cc41a2bd1b76028ffef3",
+  //       credential: "NYE4C+xR1OR+v9Ev",
+  //     },
+  //     {
+  //       urls: "turn:global.relay.metered.ca:443",
+  //       username: "15f6cc41a2bd1b76028ffef3",
+  //       credential: "NYE4C+xR1OR+v9Ev",
+  //     },
+  //   ],
 };
 
 const VideoCallPanel = ({ onClose }) => {
   const { roomId } = useParams();
-
+  const [users, setUsers] = useState({});
   const [callState, setCallState] = useState("idle");
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState({});
@@ -100,6 +100,13 @@ const VideoCallPanel = ({ onClose }) => {
     videoSocket.off("video-answer");
     videoSocket.off("video-ice-candidate");
     videoSocket.off("video-user-left");
+
+    videoSocket.on("video-user-joined", ({ socketId, name }) => {
+      setUsers((prev) => ({
+        ...prev,
+        [socketId]: name,
+      }));
+    });
 
     const handleCallEnded = () => {
       console.log("📴 Call ended received");
@@ -168,6 +175,7 @@ const VideoCallPanel = ({ onClose }) => {
     return () => {
       videoSocket.off("call-ended", handleCallEnded);
       videoSocket.off("existing-users");
+      videoSocket.off("video-user-joined");
       videoSocket.off("video-offer");
       videoSocket.off("video-answer");
       videoSocket.off("video-ice-candidate");
@@ -187,7 +195,10 @@ const VideoCallPanel = ({ onClose }) => {
       setLocalStream(stream);
       setCallState("in-call");
 
-      videoSocket.emit("video-join-room", { roomId });
+      videoSocket.emit("video-join-room", {
+        roomId,
+        name: "Mitesh Nayi",
+      });
     } catch (err) {
       toast.error("Camera permission denied");
     }
@@ -213,7 +224,7 @@ const VideoCallPanel = ({ onClose }) => {
       videoSocket.emit("video-leave-room", { roomId });
     }
 
-   onClose && onClose(true);
+    onClose && onClose(true);
   };
 
   /* ---------------- TOGGLE ---------------- */
@@ -256,7 +267,7 @@ const VideoCallPanel = ({ onClose }) => {
                 <LocalVideo
                   key={id}
                   stream={stream}
-                  name="User"
+                  name={users[id] || "User"}
                   muted={false}
                 />
               ))}

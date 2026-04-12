@@ -13,8 +13,11 @@ const videoSocket = (io, socket) => {
   });
 
   /* ---------------- VIDEO JOIN ---------------- */
-  socket.on("video-join-room", ({ roomId }) => {
+  socket.on("video-join-room", ({ roomId, name }) => {
     socket.join(roomId);
+
+    // 🔥 STORE USER NAME
+    socket.name = name;
 
     activeCalls.add(roomId);
 
@@ -23,15 +26,21 @@ const videoSocket = (io, socket) => {
       io.sockets.adapter.rooms.get(roomId) || []
     );
 
-    // 🔥 SEND EXISTING USERS TO NEW USER
+    // 🔥 SEND EXISTING USERS WITH NAME
     socket.emit(
       "existing-users",
-      clients.filter((id) => id !== socket.id)
+      clients
+        .filter((id) => id !== socket.id)
+        .map((id) => ({
+          socketId: id,
+          name: io.sockets.sockets.get(id)?.name || "User",
+        }))
     );
 
-    // 🔥 NOTIFY OTHERS
+    // 🔥 NOTIFY OTHERS WITH NAME
     socket.to(roomId).emit("video-user-joined", {
       socketId: socket.id,
+      name: socket.name,
     });
 
     io.to(roomId).emit("call-started");
@@ -48,20 +57,19 @@ const videoSocket = (io, socket) => {
 
     const room = io.sockets.adapter.rooms.get(roomId);
 
-    // 🔥 ONLY CLEANUP (NO call-ended here)
+    // 🔥 ONLY CLEANUP
     if (!room || room.size === 0) {
       activeCalls.delete(roomId);
     }
   });
 
-  /* ---------------- 🔥 CALL ENDED ---------------- */
+  /* ---------------- CALL ENDED ---------------- */
   socket.on("call-ended", ({ roomId }) => {
     console.log("📴 Call ended in room:", roomId);
 
-    // 🔥 send to ALL users (including sender)
+    // 🔥 send to ALL users
     io.to(roomId).emit("call-ended");
 
-    // 🔥 cleanup
     activeCalls.delete(roomId);
   });
 

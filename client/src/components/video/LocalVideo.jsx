@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
 
-const LocalVideo = ({ 
-  stream, 
-  muted = true, 
-  name = "User" 
+const LocalVideo = ({
+  stream,
+  muted = true,
+  name = "User"
 }) => {
   const videoRef = useRef(null);
   const [camOn, setCamOn] = useState(true);
@@ -33,24 +33,27 @@ const LocalVideo = ({
     }
 
     video.onloadedmetadata = () => {
-      video.play().catch(() => {});
+      video.play().catch(() => { });
     };
 
     const track = stream.getVideoTracks()[0];
 
     if (track) {
-      // 🔥 FIX: track.enabled detect with interval
-      const interval = setInterval(() => {
-        setCamOn(track.enabled);
-      }, 300);
+      setCamOn(track.enabled);
 
-      return () => clearInterval(interval);
+      track.onmute = () => setCamOn(false);
+      track.onunmute = () => setCamOn(true);
+
+      return () => {
+        track.onmute = null;
+        track.onunmute = null;
+      };
     }
   }, [stream]);
 
   return (
     <div className="w-full h-full relative bg-gray-900 rounded overflow-hidden flex items-center justify-center">
-      
+
       {/* VIDEO */}
       <video
         ref={videoRef}
