@@ -101,19 +101,24 @@ const VideoCallPanel = ({ onClose }) => {
     videoSocket.off("video-ice-candidate");
     videoSocket.off("video-user-left");
 
-    videoSocket.on("video-user-joined", ({ socketId, name }) => {
-      setUsers((prev) => ({
-        ...prev,
-        [socketId]: name,
-      }));
-    });
+    videoSocket.on("video-user-joined", ({ socketId, name, camOn }) => {
+  setUsers((prev) => ({
+    ...prev,
+    [socketId]: name,
+  }));
 
-    videoSocket.on("camera-toggle", ({ socketId, camOn }) => {
-      setCamStatus((prev) => ({
-        ...prev,
-        [socketId]: camOn,
-      }));
-    });
+  setCamStatus((prev) => ({
+    ...prev,
+    [socketId]: camOn ?? true,
+  }));
+});
+
+videoSocket.on("camera-toggle", ({ socketId, camOn }) => {
+  setCamStatus((prev) => ({
+    ...prev,
+    [socketId]: camOn ?? true,
+  }));
+});
 
     const handleCallEnded = () => {
       console.log("📴 Call ended received");
@@ -124,13 +129,27 @@ const VideoCallPanel = ({ onClose }) => {
 
     // Existing users → send offer
     videoSocket.on("existing-users", async (users) => {
-      for (const id of users) {
-        const peer = createPeer(id);
+      // 🔥 SET USERS + CAMERA STATE
+      users.forEach(({ socketId, name, camOn }) => {
+        setUsers((prev) => ({
+          ...prev,
+          [socketId]: name,
+        }));
+
+        setCamStatus((prev) => ({
+          ...prev,
+          [socketId]: camOn ?? true,
+        }));
+      });
+
+      // 🔥 CREATE PEERS
+      for (const { socketId } of users) {
+        const peer = createPeer(socketId);
 
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
 
-        videoSocket.emit("video-offer", { offer, to: id });
+        videoSocket.emit("video-offer", { offer, to: socketId });
       }
     });
 
@@ -284,7 +303,7 @@ const VideoCallPanel = ({ onClose }) => {
                   stream={stream}
                   name={users[id] || "User"}
                   muted={false}
-                 camOn={camStatus[id] ?? true}
+                  camOn={camStatus[id] ?? true}
                 />
               ))}
 
