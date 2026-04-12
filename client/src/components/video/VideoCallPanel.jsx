@@ -102,23 +102,25 @@ const VideoCallPanel = ({ onClose }) => {
     videoSocket.off("video-user-left");
 
     videoSocket.on("video-user-joined", ({ socketId, name, camOn }) => {
-  setUsers((prev) => ({
-    ...prev,
-    [socketId]: name,
-  }));
+      console.log("USER JOINED:", socketId, name, camOn);
+      setUsers((prev) => ({
+        ...prev,
+        [socketId]: name,
+      }));
 
-  setCamStatus((prev) => ({
-    ...prev,
-    [socketId]: camOn ?? true,
-  }));
-});
+      setCamStatus((prev) => ({
+        ...prev,
+        [socketId]: camOn ?? true,
+      }));
+    });
 
-videoSocket.on("camera-toggle", ({ socketId, camOn }) => {
-  setCamStatus((prev) => ({
-    ...prev,
-    [socketId]: camOn ?? true,
-  }));
-});
+    videoSocket.on("camera-toggle", ({ socketId, camOn }) => {
+      console.log("CAM TOGGLE:", socketId, camOn);
+      setCamStatus((prev) => ({
+        ...prev,
+        [socketId]: camOn ?? true,
+      }));
+    });
 
     const handleCallEnded = () => {
       console.log("📴 Call ended received");
@@ -129,6 +131,7 @@ videoSocket.on("camera-toggle", ({ socketId, camOn }) => {
 
     // Existing users → send offer
     videoSocket.on("existing-users", async (users) => {
+      console.log("EXISTING USERS:", users);
       // 🔥 SET USERS + CAMERA STATE
       users.forEach(({ socketId, name, camOn }) => {
         setUsers((prev) => ({
@@ -297,15 +300,19 @@ videoSocket.on("camera-toggle", ({ socketId, camOn }) => {
               />
 
               {/* REMOTE */}
-              {Object.entries(remoteStreams).map(([id, stream]) => (
-                <LocalVideo
-                  key={id}
-                  stream={stream}
-                  name={users[id] || "User"}
-                  muted={false}
-                  camOn={camStatus[id] ?? true}
-                />
-              ))}
+              {Object.entries(remoteStreams).map(([id, stream]) => {
+                console.log("RENDER:", id, users[id], camStatus[id]); 
+
+                return (
+                  <LocalVideo
+                    key={id}
+                    stream={stream}
+                    name={users[id] || "User"}
+                    muted={false}
+                    camOn={camStatus[id] ?? true}
+                  />
+                );
+              })}
 
             </div>
           )}

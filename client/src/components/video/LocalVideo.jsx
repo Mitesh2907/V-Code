@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 
 const LocalVideo = ({ stream, muted = true, name = "User", camOn = true }) => {
   const videoRef = useRef(null);
+  console.log("LOCAL VIDEO:", name, camOn);
 
   // 🔥 INITIALS
   const getInitials = (fullName) => {
