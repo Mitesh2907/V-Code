@@ -42,8 +42,8 @@ const videoSocket = (io, socket) => {
     // 🔥 NOTIFY OTHERS WITH NAME + CAMERA STATE
     socket.to(roomId).emit("video-user-joined", {
       socketId: socket.id,
-      name: socket.name,
-      camOn: socket.camOn, // 🔥 ADD THIS
+      name: name || "User",
+      camOn: true,
     });
 
     io.to(roomId).emit("call-started");
