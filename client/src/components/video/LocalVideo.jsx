@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
-const LocalVideo = ({ stream, muted = true, name = "User" }) => {
+const LocalVideo = ({ stream, muted = true, name = "User", camOn = true }) => {
   const videoRef = useRef(null);
-  const [camOn, setCamOn] = useState(true);
 
   // 🔥 INITIALS
   const getInitials = (fullName) => {
@@ -17,28 +16,16 @@ const LocalVideo = ({ stream, muted = true, name = "User" }) => {
       parts[parts.length - 1][0].toUpperCase()
     );
   };
+useEffect(() => {
+  const video = videoRef.current;
+  if (!video || !stream) return;
 
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !stream) return;
+  video.srcObject = stream;
 
-    video.srcObject = stream;
-
-    video.onloadedmetadata = () => {
-      video.play().catch(() => {});
-    };
-
-    // 🔥 REAL DETECTION (IMPORTANT)
-    const interval = setInterval(() => {
-      if (!video.videoWidth || !video.videoHeight) {
-        setCamOn(false); // ❌ no frames → camera off
-      } else {
-        setCamOn(true); // ✅ frames → camera on
-      }
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, [stream]);
+  video.onloadedmetadata = () => {
+    video.play().catch(() => {});
+  };
+}, [stream]);
 
   return (
     <div className="w-full h-full relative bg-gray-900 rounded overflow-hidden flex items-center justify-center">

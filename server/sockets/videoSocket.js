@@ -16,8 +16,9 @@ const videoSocket = (io, socket) => {
   socket.on("video-join-room", ({ roomId, name }) => {
     socket.join(roomId);
 
-    // 🔥 STORE USER NAME
+    // 🔥 STORE USER NAME + CAMERA STATE
     socket.name = name;
+    socket.camOn = true; // 🔥 default camera ON
 
     activeCalls.add(roomId);
 
@@ -26,7 +27,7 @@ const videoSocket = (io, socket) => {
       io.sockets.adapter.rooms.get(roomId) || []
     );
 
-    // 🔥 SEND EXISTING USERS WITH NAME
+    // 🔥 SEND EXISTING USERS WITH NAME + CAMERA STATE
     socket.emit(
       "existing-users",
       clients
@@ -34,30 +35,42 @@ const videoSocket = (io, socket) => {
         .map((id) => ({
           socketId: id,
           name: io.sockets.sockets.get(id)?.name || "User",
+          camOn: io.sockets.sockets.get(id)?.camOn ?? true, // 🔥 ADD THIS
         }))
     );
 
-    // 🔥 NOTIFY OTHERS WITH NAME
+    // 🔥 NOTIFY OTHERS WITH NAME + CAMERA STATE
     socket.to(roomId).emit("video-user-joined", {
       socketId: socket.id,
       name: socket.name,
+      camOn: socket.camOn, // 🔥 ADD THIS
     });
 
     io.to(roomId).emit("call-started");
+  });
+
+  /* ---------------- CAMERA TOGGLE ---------------- */
+  socket.on("camera-toggle", ({ roomId, camOn }) => {
+    // 🔥 SAVE CAMERA STATE
+    socket.camOn = camOn;
+
+    // 🔥 SEND TO OTHERS
+    socket.to(roomId).emit("camera-toggle", {
+      socketId: socket.id,
+      camOn,
+    });
   });
 
   /* ---------------- LEAVE ROOM ---------------- */
   socket.on("video-leave-room", ({ roomId }) => {
     socket.leave(roomId);
 
-    // 🔥 notify others user left
     socket.to(roomId).emit("video-user-left", {
       socketId: socket.id,
     });
 
     const room = io.sockets.adapter.rooms.get(roomId);
 
-    // 🔥 ONLY CLEANUP
     if (!room || room.size === 0) {
       activeCalls.delete(roomId);
     }
@@ -67,7 +80,6 @@ const videoSocket = (io, socket) => {
   socket.on("call-ended", ({ roomId }) => {
     console.log("📴 Call ended in room:", roomId);
 
-    // 🔥 send to ALL users
     io.to(roomId).emit("call-ended");
 
     activeCalls.delete(roomId);

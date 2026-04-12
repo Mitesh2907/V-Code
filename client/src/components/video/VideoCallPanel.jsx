@@ -49,7 +49,7 @@ const VideoCallPanel = ({ onClose }) => {
   const [remoteStreams, setRemoteStreams] = useState({});
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
-
+  const [camStatus, setCamStatus] = useState({});
   const peersRef = useRef({});
   const streamRef = useRef(null);
 
@@ -105,6 +105,13 @@ const VideoCallPanel = ({ onClose }) => {
       setUsers((prev) => ({
         ...prev,
         [socketId]: name,
+      }));
+    });
+
+    videoSocket.on("camera-toggle", ({ socketId, camOn }) => {
+      setCamStatus((prev) => ({
+        ...prev,
+        [socketId]: camOn,
       }));
     });
 
@@ -180,6 +187,7 @@ const VideoCallPanel = ({ onClose }) => {
       videoSocket.off("video-answer");
       videoSocket.off("video-ice-candidate");
       videoSocket.off("video-user-left");
+      videoSocket.off("camera-toggle");
     };
   }, [roomId, createPeer]);
 
@@ -238,7 +246,14 @@ const VideoCallPanel = ({ onClose }) => {
   const toggleCam = () => {
     streamRef.current?.getVideoTracks().forEach((t) => {
       t.enabled = !t.enabled;
+
+      // SEND CAMERA STATE
+      videoSocket.emit("camera-toggle", {
+        roomId,
+        camOn: t.enabled,
+      });
     });
+
     setCamOn((p) => !p);
   };
 
@@ -269,6 +284,7 @@ const VideoCallPanel = ({ onClose }) => {
                   stream={stream}
                   name={users[id] || "User"}
                   muted={false}
+                 camOn={camStatus[id] ?? true}
                 />
               ))}
 
