@@ -8,18 +8,37 @@ import { useParams } from "react-router-dom";
 // 🔥 ICE CONFIG (Metered TURN)
 const servers = {
   iceServers: [
-    { urls: "stun:global.relay.metered.ca:80" },
-    {
-      urls: "turn:global.relay.metered.ca:80",
-      username: "15f6cc41a2bd1b76028ffef3",
-      credential: "NYE4C+xR1OR+v9Ev",
-    },
-    {
-      urls: "turn:global.relay.metered.ca:443",
-      username: "15f6cc41a2bd1b76028ffef3",
-      credential: "NYE4C+xR1OR+v9Ev",
-    },
-  ],
+  // 🟢 FREE GOOGLE STUN (IMPORTANT)
+  { urls: "stun:stun.l.google.com:19302" },
+
+  // existing STUN (optional)
+  { urls: "stun:global.relay.metered.ca:80" },
+
+  // TURN (fallback)
+  {
+    urls: "turn:global.relay.metered.ca:80",
+    username: "15f6cc41a2bd1b76028ffef3",
+    credential: "NYE4C+xR1OR+v9Ev",
+  },
+  {
+    urls: "turn:global.relay.metered.ca:443",
+    username: "15f6cc41a2bd1b76028ffef3",
+    credential: "NYE4C+xR1OR+v9Ev",
+  },
+],
+// iceServers: [
+//     { urls: "stun:global.relay.metered.ca:80" },
+//     {
+//       urls: "turn:global.relay.metered.ca:80",
+//       username: "15f6cc41a2bd1b76028ffef3",
+//       credential: "NYE4C+xR1OR+v9Ev",
+//     },
+//     {
+//       urls: "turn:global.relay.metered.ca:443",
+//       username: "15f6cc41a2bd1b76028ffef3",
+//       credential: "NYE4C+xR1OR+v9Ev",
+//     },
+//   ],
 };
 
 const VideoCallPanel = ({ onClose }) => {
@@ -40,7 +59,7 @@ const VideoCallPanel = ({ onClose }) => {
 
     const peer = new RTCPeerConnection({
       iceServers: servers.iceServers,
-      iceTransportPolicy: "relay",
+      // iceTransportPolicy: "relay",
     });
 
     peer.onicecandidate = (event) => {
