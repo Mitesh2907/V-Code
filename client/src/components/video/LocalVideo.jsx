@@ -28,39 +28,45 @@ const LocalVideo = ({
     const video = videoRef.current;
     if (!video || !stream) return;
 
+    // 🔥 attach stream
     if (video.srcObject !== stream) {
       video.srcObject = stream;
     }
 
     video.onloadedmetadata = () => {
-      video.play().catch(() => { });
+      video.play().catch(() => {});
     };
 
-    const track = stream.getVideoTracks()[0];
+    const videoTracks = stream.getVideoTracks();
 
-    if (track) {
-      setCamOn(track.enabled);
+    if (videoTracks.length > 0) {
+      const track = videoTracks[0];
 
-      track.onmute = () => setCamOn(false);
-      track.onunmute = () => setCamOn(true);
+      // 🔥 INITIAL STATE
+      setCamOn(track.readyState === "live");
 
-      return () => {
-        track.onmute = null;
-        track.onunmute = null;
-      };
+      // 🔥 INTERVAL CHECK (RELIABLE)
+      const interval = setInterval(() => {
+        setCamOn(track.readyState === "live");
+      }, 500);
+
+      return () => clearInterval(interval);
+    } else {
+      setCamOn(false);
     }
   }, [stream]);
 
   return (
     <div className="w-full h-full relative bg-gray-900 rounded overflow-hidden flex items-center justify-center">
-
+      
       {/* VIDEO */}
       <video
         ref={videoRef}
         muted={muted}
         playsInline
         autoPlay
-        className={`w-full h-full object-cover ${camOn ? "block" : "hidden"}`}
+        style={{ display: camOn ? "block" : "none" }}  // 🔥 FIX
+        className="w-full h-full object-cover"
       />
 
       {/* CAMERA OFF UI */}
