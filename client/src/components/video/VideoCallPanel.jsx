@@ -102,29 +102,29 @@ const VideoCallPanel = ({ onClose }) => {
     videoSocket.off("video-user-left");
 
     videoSocket.on("video-user-joined", async ({ socketId, name, camOn }) => {
-  console.log("USER JOINED:", socketId, name, camOn);
+      console.log("USER JOINED:", socketId, name, camOn);
 
-  setUsers((prev) => ({
-    ...prev,
-    [socketId]: name || "User",
-  }));
+      setUsers((prev) => ({
+        ...prev,
+        [socketId]: name || "User",
+      }));
 
-  setCamStatus((prev) => ({
-    ...prev,
-    [socketId]: camOn ?? true,
-  }));
+      setCamStatus((prev) => ({
+        ...prev,
+        [socketId]: camOn ?? true,
+      }));
 
-  // 🔥 IMPORTANT: CREATE PEER + SEND OFFER
-  const peer = createPeer(socketId);
+      // 🔥 IMPORTANT: CREATE PEER + SEND OFFER
+      const peer = createPeer(socketId);
 
-  const offer = await peer.createOffer();
-  await peer.setLocalDescription(offer);
+      const offer = await peer.createOffer();
+      await peer.setLocalDescription(offer);
 
-  videoSocket.emit("video-offer", {
-    offer,
-    to: socketId,
-  });
-});
+      videoSocket.emit("video-offer", {
+        offer,
+        to: socketId,
+      });
+    });
 
     videoSocket.on("camera-toggle", ({ socketId, camOn }) => {
       console.log("CAM TOGGLE:", socketId, camOn);
@@ -279,12 +279,18 @@ const VideoCallPanel = ({ onClose }) => {
 
   const toggleCam = () => {
     streamRef.current?.getVideoTracks().forEach((t) => {
-      t.enabled = !t.enabled;
+      const newState = !t.enabled;
+      t.enabled = newState;
 
-      // SEND CAMERA STATE
+      // 🔥 FIX: LOCAL camStatus update
+      setCamStatus((prev) => ({
+        ...prev,
+        [videoSocket.id]: newState,
+      }));
+
       videoSocket.emit("camera-toggle", {
         roomId,
-        camOn: t.enabled,
+        camOn: newState,
       });
     });
 
@@ -309,11 +315,12 @@ const VideoCallPanel = ({ onClose }) => {
                 stream={localStream}
                 muted
                 name="Mitesh Nayi"
+                camOn={camOn}
               />
 
               {/* REMOTE */}
               {Object.entries(remoteStreams).map(([id, stream]) => {
-                console.log("RENDER:", id, users[id], camStatus[id]); 
+                console.log("RENDER:", id, users[id], camStatus[id]);
 
                 return (
                   <LocalVideo

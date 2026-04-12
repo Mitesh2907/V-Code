@@ -17,41 +17,41 @@ const LocalVideo = ({ stream, muted = true, name = "User", camOn = true }) => {
       parts[parts.length - 1][0].toUpperCase()
     );
   };
-useEffect(() => {
-  const video = videoRef.current;
-  if (!video || !stream) return;
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !stream) return;
 
-  video.srcObject = stream;
+    video.srcObject = stream;
 
-  video.onloadedmetadata = () => {
-    video.play().catch(() => {});
-  };
-}, [stream]);
+    video.onloadedmetadata = () => {
+      video.play().catch(() => { });
+    };
+  }, [stream]);
 
   return (
     <div className="w-full h-full relative bg-gray-900 rounded overflow-hidden flex items-center justify-center">
 
       {/* VIDEO */}
       <video
-  ref={videoRef}
-  muted={muted}
-  playsInline
-  autoPlay
-  style={{ visibility: camOn ? "visible" : "hidden" }}
-  className="w-full h-full object-cover"
-  onLoadedData={(e) => {
-    if (!camOn) {
-      e.target.pause();
-    } else {
-      e.target.play().catch(() => {});
-    }
-  }}
-/>
+        ref={videoRef}
+        muted={muted}
+        playsInline
+        autoPlay
+        style={{ visibility: camOn ? "visible" : "hidden" }}
+        className="w-full h-full object-cover"
+        onLoadedData={(e) => {
+          if (!camOn) {
+            e.target.pause();
+          } else {
+            e.target.play().catch(() => { });
+          }
+        }}
+      />
 
       {/* CAMERA OFF UI */}
       {!camOn && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-black z-10">
-          
+
           <div className="w-16 h-16 rounded-full bg-yellow-400 flex items-center justify-center text-black font-bold text-lg">
             {getInitials(name)}
           </div>
