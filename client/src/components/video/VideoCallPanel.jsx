@@ -79,12 +79,32 @@ const VideoCallPanel = ({ onClose }) => {
     };
 
     peer.ontrack = (event) => {
+      const stream = event.streams[0];
+      const track = event.track;
+
       setRemoteStreams((prev) => ({
         ...prev,
-        [socketId]: event.streams[0],
+        [socketId]: stream,
       }));
-    };
 
+      if (track.kind !== "video") return;
+
+      track.onmute = () => {
+        console.log("REMOTE CAM OFF:", socketId);
+        setCamStatus((prev) => ({
+          ...prev,
+          [socketId]: false,
+        }));
+      };
+
+      track.onunmute = () => {
+        console.log("REMOTE CAM ON:", socketId);
+        setCamStatus((prev) => ({
+          ...prev,
+          [socketId]: true,
+        }));
+      };
+    };
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => {
         peer.addTrack(track, streamRef.current);
