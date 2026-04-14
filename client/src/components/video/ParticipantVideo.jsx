@@ -6,30 +6,26 @@ const ParticipantVideo = ({ stream, name = "User", camOn = true }) => {
   useEffect(() => {
     if (camOn && stream && videoRef.current) {
       videoRef.current.srcObject = stream;
-      videoRef.current.onloadedmetadata = () => videoRef.current.play().catch(() => {});
+      videoRef.current.play().catch(() => {});
     }
   }, [stream, camOn]);
 
-  const getInitials = (fullName) => {
-    const n = (!fullName || fullName === "undefined") ? "U" : fullName;
-    const parts = n.trim().split(" ");
-    if (parts.length === 1) return parts[0][0].toUpperCase();
-    return parts[0][0].toUpperCase() + parts[parts.length - 1][0].toUpperCase();
+  const getInitials = (n) => {
+    const parts = n.split(" ");
+    return parts.map(p => p[0]).join("").toUpperCase().slice(0, 2);
   };
 
   return (
-    <div className="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center h-64 w-full">
-      {/* 🔥 Black Screen Fix: Agar camera ON hai AUR stream hai tabhi video tag render karo */}
-      {camOn && stream ? (
+    <div className="relative bg-gray-900 rounded-xl overflow-hidden h-64 w-full flex items-center justify-center border border-gray-700">
+      {camOn && stream && stream.active ? (
         <video ref={videoRef} playsInline autoPlay className="w-full h-full object-cover" />
       ) : (
-        /* 🔴 Initials UI: Jab cam off ho ya stream load ho rahi ho */
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-black">
-          <div className="w-16 h-16 rounded-full bg-yellow-400 flex items-center justify-center text-black font-bold text-lg">
+        <div className="flex flex-col items-center">
+          <div className="w-20 h-20 rounded-full bg-yellow-500 flex items-center justify-center text-black text-2xl font-bold">
             {getInitials(name)}
           </div>
-          <span className="text-sm mt-2">{name === "undefined" ? "User" : name}</span>
-          <span className="text-xs opacity-60">{!camOn ? "Camera Off" : "Connecting..."}</span>
+          <p className="text-white mt-3 font-medium">{name}</p>
+          <p className="text-gray-400 text-xs mt-1">{!camOn ? "Camera Off" : "Connecting..."}</p>
         </div>
       )}
     </div>
