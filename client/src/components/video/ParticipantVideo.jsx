@@ -3,17 +3,33 @@ import React, { useEffect, useRef } from "react";
 const ParticipantVideo = ({ stream, name = "User", camOn = true }) => {
   const videoRef = useRef(null);
 
+  // 🔥 SET STREAM PROPERLY
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !stream) return;
+    if (!video) return;
 
-    video.srcObject = stream;
+    if (stream) {
+      video.srcObject = stream;
 
-    video.onloadedmetadata = () => {
-      video.play().catch(() => {});
-    };
+      video.onloadedmetadata = () => {
+        video.play().catch(() => {});
+      };
+    }
   }, [stream]);
 
+  // 🔥 HANDLE CAMERA ON/OFF (IMPORTANT FIX)
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!camOn) {
+      video.pause();
+    } else {
+      video.play().catch(() => {});
+    }
+  }, [camOn]);
+
+  // 🔥 INITIALS
   const getInitials = (fullName) => {
     if (!fullName) return "U";
 
@@ -34,8 +50,8 @@ const ParticipantVideo = ({ stream, name = "User", camOn = true }) => {
         ref={videoRef}
         playsInline
         autoPlay
-        style={{ display: camOn ? "block" : "none" }}
         className="w-full h-full object-cover"
+        style={{ display: camOn ? "block" : "none" }}
       />
 
       {/* CAMERA OFF UI */}
