@@ -66,15 +66,20 @@ const AuthPage = () => {
 
   try {
     if (isLogin) {
-      await login(formData.email, formData.password);
-      navigate('/profile');
-    } else {
+  const res = await login(formData.email, formData.password);
+
+  // 🔥 ADD THIS LINE (IMPORTANT)
+  localStorage.setItem("user", JSON.stringify(res.user));
+
+  navigate('/profile');
+} else {
       await signup(
         formData.name,
         formData.email,
         formData.password,
         formData.confirmPassword
       );
+      localStorage.setItem("user", JSON.stringify(res.user));
       navigate('/profile');
     }
   } catch (error) {
