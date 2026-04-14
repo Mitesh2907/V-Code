@@ -50,7 +50,11 @@ const VideoCallPanel = ({ onClose }) => {
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [camStatus, setCamStatus] = useState({});
-  const user = JSON.parse(localStorage.getItem("user"));
+  const storedUser = localStorage.getItem("user");
+
+const user = storedUser && storedUser !== "undefined"
+  ? JSON.parse(storedUser)
+  : null;
   console.log("USER FROM STORAGE:", user);
   const peersRef = useRef({});
   const streamRef = useRef(null);
