@@ -38,14 +38,14 @@ const VideoCallPanel = ({ onClose }) => {
   const peersRef = useRef({});
   const streamRef = useRef(null);
 
-  /* ---------------- CREATE PEER (FIXED) ---------------- */
+  /* ---------------- CREATE PEER (CORRECTED) ---------------- */
   const createPeer = useCallback((socketId) => {
-    // 1. Agar peer pehle se hai toh wahi return karo
+    // 1. Agar peer pehle se hai toh wahi return karo, ref check zaroori hai
     if (peersRef.current[socketId]) return peersRef.current[socketId];
 
     const peer = new RTCPeerConnection(servers);
 
-    // 2. Local tracks add karo
+    // 2. Local tracks add karo zaroori logic hai
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => {
         peer.addTrack(track, streamRef.current);
@@ -62,21 +62,32 @@ const VideoCallPanel = ({ onClose }) => {
     };
 
     peer.ontrack = (event) => {
-      console.log("RECEIVING REMOTE STREAM FROM:", socketId);
+      // ✅ CLEAN LOGIC: No track.onmute/onunmute
+      const remoteStream = event.streams[0];
+      console.log(`Receiving stream from user: ${socketId}`);
+
       setRemoteStreams((prev) => ({
         ...prev,
-        [socketId]: event.streams[0],
+        [socketId]: remoteStream,
       }));
     };
 
-    // 3. Peer ko ref mein save karo
+    // 3. Peer ko ref mein save karo zaroori hai connection stability ke liye
     peersRef.current[socketId] = peer;
     return peer;
   }, []);
 
-  /* ---------------- SOCKET EVENTS ---------------- */
+  /* ---------------- SOCKET EVENTS (CORRECTED) ---------------- */
   useEffect(() => {
     if (!roomId) return;
+
+    // cleanup purane logic se copy kiya
+    videoSocket.off("call-ended");
+    videoSocket.off("existing-users");
+    videoSocket.off("video-offer");
+    videoSocket.off("video-answer");
+    videoSocket.off("video-ice-candidate");
+    videoSocket.off("video-user-left");
 
     videoSocket.on("video-user-joined", async ({ socketId, name, camOn }) => {
       console.log("USER JOINED:", socketId, name, camOn);
@@ -91,15 +102,18 @@ const VideoCallPanel = ({ onClose }) => {
       videoSocket.emit("video-offer", { offer, to: socketId });
     });
 
+    // ✅ RELIABLE TOGGLE LOGIC: Only depend on Socket.IO event
     videoSocket.on("camera-toggle", ({ socketId, camOn }) => {
-      console.log("REMOTE CAM TOGGLE:", socketId, camOn);
+      console.log(`Remote User ${socketId} toggled camera: ${camOn}`);
       setCamStatus((prev) => ({
         ...prev,
         [socketId]: camOn,
       }));
     });
 
+    // baaki purana logic correct hai, bas createPeer change ko properly handling ke liye wrapper zaroori hai
     videoSocket.on("existing-users", async (usersList) => {
+      console.log("EXISTING USERS:", usersList);
       usersList.forEach(({ socketId, name, camOn }) => {
         setUsers((prev) => ({ ...prev, [socketId]: name }));
         setCamStatus((prev) => ({ ...prev, [socketId]: camOn ?? true }));
@@ -152,9 +166,9 @@ const VideoCallPanel = ({ onClose }) => {
       videoSocket.off("video-ice-candidate");
       videoSocket.off("video-user-left");
     };
-  }, [roomId, createPeer]);
+  }, [roomId, createPeer]); // creation peer changes se stable useEffect
 
-  /* ---------------- JOIN / LEAVE ---------------- */
+  /* ---------------- LOCAL / LEAVE logic - purana correct hai ---------------- */
   const joinCall = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -162,13 +176,9 @@ const VideoCallPanel = ({ onClose }) => {
       setLocalStream(stream);
       setCallState("in-call");
       videoSocket.emit("video-join-room", { roomId, name: user?.fullName || "User" });
-    } catch (err) {
-      toast.error("Camera permission denied");
-    }
+    } catch (err) { toast.error("Camera permission denied"); }
   };
-
   useEffect(() => { joinCall(); }, []);
-
   const leaveCall = (emit = true) => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     Object.values(peersRef.current).forEach((p) => p.close());
@@ -176,14 +186,22 @@ const VideoCallPanel = ({ onClose }) => {
     setRemoteStreams({});
     setLocalStream(null);
     setCallState("idle");
-    if (emit) {
-      videoSocket.emit("call-ended", { roomId });
-      videoSocket.emit("video-leave-room", { roomId });
-    }
+    if (emit) { videoSocket.emit("call-ended", { roomId }); videoSocket.emit("video-leave-room", { roomId }); }
     onClose && onClose(true);
   };
 
-  /* ---------------- TOGGLE (FIXED) ---------------- */
+  const toggleMic = () => {
+    if (streamRef.current) {
+      const audioTrack = streamRef.current.getAudioTracks()[0];
+      if (audioTrack) {
+        const newStatus = !audioTrack.enabled;
+        audioTrack.enabled = newStatus;
+        setMicOn(newStatus);
+      }
+    }
+  };
+
+  /* ---------------- LOCAL CAM TOGGLE logic - correction ---------------- */
   const toggleCam = () => {
     if (streamRef.current) {
       const videoTrack = streamRef.current.getVideoTracks()[0];
@@ -191,17 +209,10 @@ const VideoCallPanel = ({ onClose }) => {
         const newStatus = !videoTrack.enabled;
         videoTrack.enabled = newStatus;
         setCamOn(newStatus);
+        
+        // localStatus update removed to simplify, we depend only on camOn state.
+        
         videoSocket.emit("camera-toggle", { roomId, camOn: newStatus });
-      }
-    }
-  };
-
-  const toggleMic = () => {
-    if (streamRef.current) {
-      const audioTrack = streamRef.current.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setMicOn(audioTrack.enabled);
       }
     }
   };
@@ -210,18 +221,24 @@ const VideoCallPanel = ({ onClose }) => {
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/60" />
       <div className="relative max-w-6xl w-full mx-4 my-8 bg-gray-900 rounded-lg overflow-hidden flex flex-col">
+        <div className="p-3 border-b border-gray-700 text-gray-200">Video Call</div>
         <div className="p-4 bg-gray-800">
           {callState === "in-call" && (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
               <LocalVideo stream={localStream} muted name={user?.fullName || "User"} camOn={camOn} />
-              {Object.entries(remoteStreams).map(([id, stream]) => (
-                <ParticipantVideo 
-                  key={id} 
-                  stream={stream} 
-                  name={users[id] || "User"} 
-                  camOn={camStatus[id] !== false} 
-                />
-              ))}
+              {Object.entries(remoteStreams).map(([id, stream]) => {
+                // RENDER log to confirm correct status propagates to child component
+                console.log(`Rendering user ${id} with cam status: ${camStatus[id]}`);
+                return (
+                  <ParticipantVideo 
+                    key={id} 
+                    stream={stream} 
+                    name={users[id] || "User"} 
+                    // Default zaroori hai, taaki initial join par video on dikhe
+                    camOn={camStatus[id] !== false} 
+                  />
+                );
+              })}
             </div>
           )}
         </div>
