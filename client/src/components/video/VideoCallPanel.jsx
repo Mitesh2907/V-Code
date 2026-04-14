@@ -39,7 +39,6 @@ const VideoCallPanel = ({ onClose }) => {
   const peersRef = useRef({});
   const streamRef = useRef(null);
 
-  /* ---------------- CREATE PEER ---------------- */
   const createPeer = useCallback((socketId) => {
     if (peersRef.current[socketId]) return peersRef.current[socketId];
 
@@ -53,31 +52,24 @@ const VideoCallPanel = ({ onClose }) => {
 
     peer.onicecandidate = (event) => {
       if (event.candidate) {
-        videoSocket.emit("video-ice-candidate", {
-          candidate: event.candidate,
-          to: socketId,
-        });
+        videoSocket.emit("video-ice-candidate", { candidate: event.candidate, to: socketId });
       }
     };
 
     peer.ontrack = (event) => {
-      setRemoteStreams((prev) => ({
-        ...prev,
-        [socketId]: event.streams[0],
-      }));
+      setRemoteStreams((prev) => ({ ...prev, [socketId]: event.streams[0] }));
     };
 
     peersRef.current[socketId] = peer;
     return peer;
   }, []);
 
-  /* ---------------- SOCKET EVENTS ---------------- */
   useEffect(() => {
     if (!roomId) return;
 
     videoSocket.on("video-user-joined", async ({ socketId, name, camOn }) => {
-      const displayName = (!name || name === "undefined") ? "User" : name;
-      setUsers((prev) => ({ ...prev, [socketId]: displayName }));
+      const validName = (!name || name === "undefined") ? "User" : name;
+      setUsers((prev) => ({ ...prev, [socketId]: validName }));
       setCamStatus((prev) => ({ ...prev, [socketId]: camOn ?? true }));
 
       const peer = createPeer(socketId);
@@ -92,8 +84,7 @@ const VideoCallPanel = ({ onClose }) => {
 
     videoSocket.on("existing-users", async (usersList) => {
       usersList.forEach((u) => {
-        const uName = (!u.name || u.name === "undefined") ? "User" : u.name;
-        setUsers((prev) => ({ ...prev, [u.socketId]: uName }));
+        setUsers((prev) => ({ ...prev, [u.socketId]: u.name || "User" }));
         setCamStatus((prev) => ({ ...prev, [u.socketId]: u.camOn }));
       });
 
@@ -107,7 +98,7 @@ const VideoCallPanel = ({ onClose }) => {
 
     videoSocket.on("video-offer", async ({ offer, sender }) => {
       let peer = peersRef.current[sender] || createPeer(sender);
-      // ✅ Spelling Fixed: RTCSessionDescription
+      // ✅ spelling fix: RTCSessionDescription
       await peer.setRemoteDescription(new RTCSessionDescription(offer));
       const answer = await peer.createAnswer();
       await peer.setLocalDescription(answer);
@@ -116,7 +107,7 @@ const VideoCallPanel = ({ onClose }) => {
 
     videoSocket.on("video-answer", async ({ answer, sender }) => {
       const peer = peersRef.current[sender];
-      // ✅ Spelling Fixed: RTCSessionDescription
+      // ✅ spelling fix: RTCSessionDescription
       if (peer) await peer.setRemoteDescription(new RTCSessionDescription(answer));
     });
 
@@ -137,8 +128,6 @@ const VideoCallPanel = ({ onClose }) => {
       });
     });
 
-    videoSocket.on("call-ended", () => leaveCall(false));
-
     return () => {
       videoSocket.off("video-user-joined");
       videoSocket.off("camera-toggle");
@@ -147,58 +136,45 @@ const VideoCallPanel = ({ onClose }) => {
       videoSocket.off("video-answer");
       videoSocket.off("video-ice-candidate");
       videoSocket.off("video-user-left");
-      videoSocket.off("call-ended");
     };
   }, [roomId, createPeer]);
 
-  /* ---------------- HANDLERS ---------------- */
   const joinCall = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       streamRef.current = stream;
       setLocalStream(stream);
       setCallState("in-call");
-      const myName = user?.fullName || user?.name || "User";
+      const myName = user?.fullName || "User";
       videoSocket.emit("video-join-room", { roomId, name: myName });
-    } catch (err) {
-      toast.error("Camera permission denied");
-    }
+    } catch (err) { toast.error("Camera error"); }
   };
-
   useEffect(() => { joinCall(); }, []);
 
   const toggleCam = () => {
     if (streamRef.current) {
-      const videoTrack = streamRef.current.getVideoTracks()[0];
-      if (videoTrack) {
-        const newStatus = !videoTrack.enabled;
-        videoTrack.enabled = newStatus;
-        setCamOn(newStatus);
-        videoSocket.emit("camera-toggle", { roomId, camOn: newStatus });
+      const track = streamRef.current.getVideoTracks()[0];
+      if (track) {
+        track.enabled = !track.enabled;
+        setCamOn(track.enabled);
+        videoSocket.emit("camera-toggle", { roomId, camOn: track.enabled });
       }
     }
   };
 
   const toggleMic = () => {
     if (streamRef.current) {
-      const audioTrack = streamRef.current.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setMicOn(audioTrack.enabled);
+      const track = streamRef.current.getAudioTracks()[0];
+      if (track) {
+        track.enabled = !track.enabled;
+        setMicOn(track.enabled);
       }
     }
   };
 
-  const leaveCall = (emit = true) => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
-    Object.values(peersRef.current).forEach((p) => p.close());
-    peersRef.current = {};
-    setRemoteStreams({});
-    setLocalStream(null);
-    setCallState("idle");
-    if (emit) {
-      videoSocket.emit("video-leave-room", { roomId });
-    }
+  const leaveCall = () => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    Object.values(peersRef.current).forEach(p => p.close());
     onClose && onClose(true);
   };
 
@@ -207,23 +183,23 @@ const VideoCallPanel = ({ onClose }) => {
       <div className="absolute inset-0 bg-black/60" />
       <div className="relative max-w-6xl w-full mx-4 my-8 bg-gray-900 rounded-lg overflow-hidden flex flex-col">
         <div className="p-4 bg-gray-800">
-          {callState === "in-call" && (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <LocalVideo stream={localStream} name={user?.fullName || "User"} camOn={camOn} muted />
-              {Object.entries(remoteStreams).map(([id, stream]) => (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <LocalVideo stream={localStream} name={user?.fullName || "User"} camOn={camOn} />
+            {Object.entries(remoteStreams).map(([id, stream]) => {
+              // 🔥 Sync Fix: Sirf tab cam dikhao jab stream aa chuki ho
+              const isActualCamOn = stream && camStatus[id] !== false;
+              return (
                 <ParticipantVideo 
-                  key={id} 
-                  stream={stream} 
-                  name={users[id] || "User"} 
-                  camOn={camStatus[id] !== false} 
+                   key={id} 
+                   stream={stream} 
+                   name={users[id] || "User"} 
+                   camOn={isActualCamOn} 
                 />
-              ))}
-            </div>
-          )}
+              );
+            })}
+          </div>
         </div>
-        {callState === "in-call" && (
-          <VideoControls micOn={micOn} camOn={camOn} onToggleMic={toggleMic} onToggleCam={toggleCam} onLeave={leaveCall} />
-        )}
+        <VideoControls micOn={micOn} camOn={camOn} onToggleMic={toggleMic} onToggleCam={toggleCam} onLeave={leaveCall} />
       </div>
     </div>
   );

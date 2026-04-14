@@ -11,7 +11,7 @@ const videoSocket = (io, socket) => {
   socket.on("video-join-room", ({ roomId, name }) => {
     socket.join(roomId);
 
-    // 🔥 Fix: Agar frontend se name na aaye toh fallback
+    // 🔥 Sync Fix: Data ko server object par store karo
     socket.userName = name || "User"; 
     socket.camOn = true; 
 
@@ -19,8 +19,12 @@ const videoSocket = (io, socket) => {
 
     const clients = Array.from(io.sockets.adapter.rooms.get(roomId) || []);
 
-    // Existing users ko list bhejte waqt data ensure karein
-    socket.emit("existing-users", clients.filter((id) => id !== socket.id).map((id) => {
+    // Existing users ko unki correct details ke saath bhej rahe hain
+    socket.emit(
+      "existing-users",
+      clients
+        .filter((id) => id !== socket.id)
+        .map((id) => {
           const clientSocket = io.sockets.sockets.get(id);
           return {
             socketId: id,
@@ -30,7 +34,7 @@ const videoSocket = (io, socket) => {
         })
     );
 
-    // 🔥 Fix: Broadcast correctly with fallback
+    // 🔥 Sync Fix: Naye user ki info sabko broadcast karo
     socket.to(roomId).emit("video-user-joined", {
       socketId: socket.id,
       name: socket.userName,
@@ -41,13 +45,14 @@ const videoSocket = (io, socket) => {
   });
 
   socket.on("camera-toggle", ({ roomId, camOn }) => {
-    socket.camOn = camOn;
+    socket.camOn = camOn; // Server state update
     socket.to(roomId).emit("camera-toggle", {
       socketId: socket.id,
       camOn,
     });
   });
 
+  // WebRTC Signal Events
   socket.on("video-offer", ({ offer, to }) => {
     io.to(to).emit("video-offer", { offer, sender: socket.id });
   });

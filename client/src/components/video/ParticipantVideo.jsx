@@ -6,7 +6,7 @@ const ParticipantVideo = ({ stream, name = "User", camOn = true }) => {
   useEffect(() => {
     if (camOn && stream && videoRef.current) {
       videoRef.current.srcObject = stream;
-      videoRef.current.onloadedmetadata = () => videoRef.current.play().catch(e => {});
+      videoRef.current.onloadedmetadata = () => videoRef.current.play().catch(() => {});
     }
   }, [stream, camOn]);
 
@@ -19,10 +19,11 @@ const ParticipantVideo = ({ stream, name = "User", camOn = true }) => {
 
   return (
     <div className="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center h-64 w-full">
-      {/* ✅ Check: Agar cam ON hai AUR stream mil chuki hai tabhi video dikhao */}
+      {/* 🔥 Black Screen Fix: Agar camera ON hai AUR stream hai tabhi video tag render karo */}
       {camOn && stream ? (
         <video ref={videoRef} playsInline autoPlay className="w-full h-full object-cover" />
       ) : (
+        /* 🔴 Initials UI: Jab cam off ho ya stream load ho rahi ho */
         <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-black">
           <div className="w-16 h-16 rounded-full bg-yellow-400 flex items-center justify-center text-black font-bold text-lg">
             {getInitials(name)}
