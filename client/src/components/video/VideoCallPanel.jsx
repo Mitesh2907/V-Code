@@ -50,6 +50,8 @@ const VideoCallPanel = ({ onClose }) => {
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [camStatus, setCamStatus] = useState({});
+  const user = JSON.parse(localStorage.getItem("user"));
+  console.log("USER FROM STORAGE:", user);
   const peersRef = useRef({});
   const streamRef = useRef(null);
 
@@ -237,12 +239,13 @@ const VideoCallPanel = ({ onClose }) => {
       setLocalStream(stream);
       setCallState("in-call");
 
-      const user = JSON.parse(localStorage.getItem("user"));
+      
 
       videoSocket.emit("video-join-room", {
         roomId,
         name: user?.name || "User",
       });
+      
     } catch (err) {
       toast.error("Camera permission denied");
     }
