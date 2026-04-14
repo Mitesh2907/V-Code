@@ -4,6 +4,7 @@ import LocalVideo from "./LocalVideo";
 import toast from "react-hot-toast";
 import videoSocket from "../../configs/videoSocket";
 import { useParams } from "react-router-dom";
+import ParticipantVideo from "./ParticipantVideo";
 
 // 🔥 ICE CONFIG (Metered TURN)
 const servers = {
@@ -52,9 +53,9 @@ const VideoCallPanel = ({ onClose }) => {
   const [camStatus, setCamStatus] = useState({});
   const storedUser = localStorage.getItem("vcode-user");
 
-const user = storedUser && storedUser !== "undefined"
-  ? JSON.parse(storedUser)
-  : null;
+  const user = storedUser && storedUser !== "undefined"
+    ? JSON.parse(storedUser)
+    : null;
   console.log("USER FROM STORAGE:", user);
   const peersRef = useRef({});
   const streamRef = useRef(null);
@@ -243,13 +244,13 @@ const user = storedUser && storedUser !== "undefined"
       setLocalStream(stream);
       setCallState("in-call");
 
-      
+
 
       videoSocket.emit("video-join-room", {
         roomId,
         name: user?.fullName || "User"
       });
-      
+
     } catch (err) {
       toast.error("Camera permission denied");
     }
@@ -319,7 +320,7 @@ const user = storedUser && storedUser !== "undefined"
           {callState === "in-call" && (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
 
-              
+
               {/* LOCAL */}
               <LocalVideo
                 stream={localStream}
@@ -333,11 +334,10 @@ const user = storedUser && storedUser !== "undefined"
                 console.log("RENDER:", id, users[id], camStatus[id]);
 
                 return (
-                  <LocalVideo
+                  <ParticipantVideo
                     key={id}
                     stream={stream}
                     name={users[id] || "User"}
-                    muted={false}
                     camOn={camStatus[id] ?? true}
                   />
                 );
