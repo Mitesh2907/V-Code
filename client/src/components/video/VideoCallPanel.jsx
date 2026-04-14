@@ -237,9 +237,11 @@ const VideoCallPanel = ({ onClose }) => {
       setLocalStream(stream);
       setCallState("in-call");
 
+      const user = JSON.parse(localStorage.getItem("user"));
+
       videoSocket.emit("video-join-room", {
         roomId,
-        name: "Mitesh Nayi",
+        name: user?.name || "User",
       });
     } catch (err) {
       toast.error("Camera permission denied");
@@ -310,11 +312,12 @@ const VideoCallPanel = ({ onClose }) => {
           {callState === "in-call" && (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
 
+              
               {/* LOCAL */}
               <LocalVideo
                 stream={localStream}
                 muted
-                name="Mitesh Nayi"
+                name={user?.name || "User"}
                 camOn={camOn}
               />
 
