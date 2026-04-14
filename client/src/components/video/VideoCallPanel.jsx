@@ -50,7 +50,7 @@ const VideoCallPanel = ({ onClose }) => {
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [camStatus, setCamStatus] = useState({});
-  const storedUser = localStorage.getItem("user");
+  const storedUser = localStorage.getItem("vcode-user");
 
 const user = storedUser && storedUser !== "undefined"
   ? JSON.parse(storedUser)
@@ -247,7 +247,7 @@ const user = storedUser && storedUser !== "undefined"
 
       videoSocket.emit("video-join-room", {
         roomId,
-        name: user?.name || "User",
+        name: user?.fullName || "User"
       });
       
     } catch (err) {
@@ -324,7 +324,7 @@ const user = storedUser && storedUser !== "undefined"
               <LocalVideo
                 stream={localStream}
                 muted
-                name={user?.name || "User"}
+                name={user?.fullName || "User"}
                 camOn={camOn}
               />
 

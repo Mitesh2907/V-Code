@@ -68,9 +68,6 @@ const AuthPage = () => {
     if (isLogin) {
   const res = await login(formData.email, formData.password);
 
-  // 🔥 ADD THIS LINE (IMPORTANT)
-  localStorage.setItem("user", JSON.stringify(res.user));
-
   navigate('/profile');
 } else {
       await signup(
@@ -79,7 +76,6 @@ const AuthPage = () => {
         formData.password,
         formData.confirmPassword
       );
-      localStorage.setItem("user", JSON.stringify(res.user));
       navigate('/profile');
     }
   } catch (error) {
