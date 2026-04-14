@@ -1,13 +1,23 @@
 import React, { useEffect, useRef } from "react";
 
-const ParticipantVideo = ({ stream, name, camOn = true }) => {
+const ParticipantVideo = ({ stream, name = "User", camOn = true }) => {
   const videoRef = useRef(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !stream) return;
+
+    video.srcObject = stream;
+
+    video.onloadedmetadata = () => {
+      video.play().catch(() => {});
+    };
+  }, [stream]);
 
   const getInitials = (fullName) => {
     if (!fullName) return "U";
 
     const parts = fullName.trim().split(" ");
-
     if (parts.length === 1) return parts[0][0].toUpperCase();
 
     return (
@@ -16,32 +26,26 @@ const ParticipantVideo = ({ stream, name, camOn = true }) => {
     );
   };
 
-  useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
-    }
-  }, [stream]);
-
   return (
-    <div className="relative bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center w-full h-full">
+    <div className="w-full h-full relative bg-gray-900 rounded overflow-hidden flex items-center justify-center">
 
       {/* VIDEO */}
       <video
         ref={videoRef}
-        autoPlay
         playsInline
-        className="w-full h-full object-cover"
+        autoPlay
         style={{ display: camOn ? "block" : "none" }}
+        className="w-full h-full object-cover"
       />
 
       {/* CAMERA OFF UI */}
       {!camOn && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black text-white">
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-black">
           <div className="w-16 h-16 rounded-full bg-yellow-400 flex items-center justify-center text-black font-bold text-lg">
             {getInitials(name)}
           </div>
 
-          <span className="mt-2">{name}</span>
+          <span className="text-sm mt-2">{name}</span>
           <span className="text-xs opacity-60">Camera Off</span>
         </div>
       )}
