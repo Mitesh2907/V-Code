@@ -10,22 +10,19 @@ const ParticipantVideo = ({ stream, name = "User", camOn = true }) => {
     }
   }, [stream, camOn]);
 
-  const getInitials = (n) => {
-    const parts = n.split(" ");
-    return parts.map(p => p[0]).join("").toUpperCase().slice(0, 2);
-  };
+  const initials = name.split(" ").map(n => n[0]).join("").toUpperCase();
 
   return (
-    <div className="relative bg-gray-900 rounded-xl overflow-hidden h-64 w-full flex items-center justify-center border border-gray-700">
-      {camOn && stream && stream.active ? (
-        <video ref={videoRef} playsInline autoPlay className="w-full h-full object-cover" />
+    <div className="relative bg-gray-800 rounded-2xl h-64 flex items-center justify-center border border-gray-600">
+      {camOn && stream ? (
+        <video ref={videoRef} playsInline autoPlay className="w-full h-full object-cover rounded-2xl" />
       ) : (
-        <div className="flex flex-col items-center">
-          <div className="w-20 h-20 rounded-full bg-yellow-500 flex items-center justify-center text-black text-2xl font-bold">
-            {getInitials(name)}
+        <div className="text-center">
+          <div className="w-20 h-20 bg-yellow-500 rounded-full flex items-center justify-center text-2xl font-bold mx-auto">
+            {initials || "U"}
           </div>
-          <p className="text-white mt-3 font-medium">{name}</p>
-          <p className="text-gray-400 text-xs mt-1">{!camOn ? "Camera Off" : "Connecting..."}</p>
+          <p className="text-white mt-4 font-semibold">{name}</p>
+          <p className="text-gray-400 text-sm mt-1">{!camOn ? "Camera Off" : "Connecting..."}</p>
         </div>
       )}
     </div>
