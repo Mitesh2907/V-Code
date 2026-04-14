@@ -6,10 +6,10 @@ import videoSocket from "../../configs/videoSocket";
 import { useParams } from "react-router-dom";
 import ParticipantVideo from "./ParticipantVideo";
 
-// 🔥 ICE CONFIG (Metered TURN)
+//  ICE CONFIG (Metered TURN)
 const servers = {
   iceServers: [
-    // 🟢 FREE GOOGLE STUN (IMPORTANT)
+    //  GOOGLE STUN (IMPORTANT)
     { urls: "stun:stun.l.google.com:19302" },
 
     // existing STUN (optional)
@@ -141,7 +141,7 @@ const VideoCallPanel = ({ onClose }) => {
         [socketId]: camOn ?? true,
       }));
 
-      // 🔥 IMPORTANT: CREATE PEER + SEND OFFER
+      //  IMPORTANT: CREATE PEER + SEND OFFER
       const peer = createPeer(socketId);
 
       const offer = await peer.createOffer();
@@ -162,7 +162,7 @@ const VideoCallPanel = ({ onClose }) => {
     });
 
     const handleCallEnded = () => {
-      console.log("📴 Call ended received");
+      console.log(" Call ended received");
       leaveCall(false);
     };
 
@@ -171,7 +171,7 @@ const VideoCallPanel = ({ onClose }) => {
     // Existing users → send offer
     videoSocket.on("existing-users", async (users) => {
       console.log("EXISTING USERS:", users);
-      // 🔥 SET USERS + CAMERA STATE
+      //  SET USERS + CAMERA STATE
       users.forEach(({ socketId, name, camOn }) => {
         setUsers((prev) => ({
           ...prev,
@@ -184,7 +184,7 @@ const VideoCallPanel = ({ onClose }) => {
         }));
       });
 
-      // 🔥 CREATE PEERS
+      //  CREATE PEERS
       for (const { socketId } of users) {
         const peer = createPeer(socketId);
 
@@ -312,7 +312,7 @@ const VideoCallPanel = ({ onClose }) => {
       const newState = !t.enabled;
       t.enabled = newState;
 
-      // 🔥 FIX: LOCAL camStatus update
+      
       setCamStatus((prev) => ({
         ...prev,
         [videoSocket.id]: newState,

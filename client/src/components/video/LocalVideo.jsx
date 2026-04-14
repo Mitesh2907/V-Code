@@ -4,7 +4,7 @@ const LocalVideo = ({ stream, muted = true, name = "User", camOn = true }) => {
   const videoRef = useRef(null);
   console.log("LOCAL VIDEO:", name, camOn);
 
-  // 🔥 INITIALS
+  //  INITIALS
   const getInitials = (fullName) => {
     if (!fullName) return "U";
 

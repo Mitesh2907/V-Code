@@ -3,7 +3,7 @@ import React, { useEffect, useRef } from "react";
 const ParticipantVideo = ({ stream, name = "User", camOn = true }) => {
   const videoRef = useRef(null);
 
-  // 🔥 Attach stream
+  //  Attach stream
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !stream) return;
@@ -15,7 +15,7 @@ const ParticipantVideo = ({ stream, name = "User", camOn = true }) => {
     };
   }, [stream]);
 
-  // 🔥 initials
+  //  initials
   const getInitials = (fullName) => {
     if (!fullName) return "U";
 
@@ -41,7 +41,7 @@ const ParticipantVideo = ({ stream, name = "User", camOn = true }) => {
         style={{ display: camOn ? "block" : "none" }}
       />
 
-      {/* 🔴 CAMERA OFF UI */}
+      {/*  CAMERA OFF UI */}
       {!camOn && (
         <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-black">
           

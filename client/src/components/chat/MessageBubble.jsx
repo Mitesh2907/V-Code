@@ -3,7 +3,7 @@ import React from 'react';
 const MessageBubble = ({ message }) => {
   const isMe = message.isMe;
 
-  // ✅ safe time handling
+  //  safe time handling
   const time =
     message.time ||
     new Date().toLocaleTimeString([], {

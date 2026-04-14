@@ -9,7 +9,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 🔁 Restore user on app load
+  //  Restore user on app load
   useEffect(() => {
     const initAuth = async () => {
       const token = localStorage.getItem("vcode-token");
@@ -50,7 +50,7 @@ export const AuthProvider = ({ children }) => {
     initAuth();
   }, []);
 
-  // 🔐 LOGIN
+  //  LOGIN
   const login = async (email, password) => {
     setLoading(true);
     try {
@@ -61,13 +61,13 @@ export const AuthProvider = ({ children }) => {
 
       const { token, user } = data;
 
-      // ✅ normalize user
+      //  normalize user
       const normalizedUser = {
         ...user,
         fullName: user.fullName || user.full_name,
       };
 
-      // ✅ save token + user
+      // save token + user
       localStorage.setItem("vcode-token", token);
       localStorage.setItem("vcode-user", JSON.stringify(normalizedUser));
 
@@ -83,7 +83,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // 📝 REGISTER
+  //  REGISTER
   const signup = async (fullName, email, password, confirmPassword) => {
     setLoading(true);
     try {
@@ -96,13 +96,13 @@ export const AuthProvider = ({ children }) => {
 
       const { token, user } = data;
 
-      // ✅ normalize user
+      // normalize user
       const normalizedUser = {
         ...user,
         fullName: user.fullName || user.full_name,
       };
 
-      // ✅ save token + user
+      //  save token + user
       localStorage.setItem("vcode-token", token);
       localStorage.setItem("vcode-user", JSON.stringify(normalizedUser));
 
@@ -117,7 +117,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // 🚪 LOGOUT
+  //  LOGOUT
   const logout = () => {
     localStorage.removeItem("vcode-token");
     localStorage.removeItem("vcode-user");

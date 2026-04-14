@@ -57,32 +57,32 @@ const AuthPage = () => {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  const isValid = validateForm();
-  if (!isValid) {
-    return; // ⛔ yahin stop
-  }
-
-  try {
-    if (isLogin) {
-  const res = await login(formData.email, formData.password);
-
-  navigate('/profile');
-} else {
-      await signup(
-        formData.name,
-        formData.email,
-        formData.password,
-        formData.confirmPassword
-      );
-      navigate('/profile');
+    const isValid = validateForm();
+    if (!isValid) {
+      return;
     }
-  } catch (error) {
-  toast.error(error.message || "Invalid email or password");
-}
 
-};
+    try {
+      if (isLogin) {
+        const res = await login(formData.email, formData.password);
+
+        navigate('/profile');
+      } else {
+        await signup(
+          formData.name,
+          formData.email,
+          formData.password,
+          formData.confirmPassword
+        );
+        navigate('/profile');
+      }
+    } catch (error) {
+      toast.error(error.message || "Invalid email or password");
+    }
+
+  };
 
 
   if (loading) {
@@ -233,11 +233,11 @@ const AuthPage = () => {
             </div>
 
             {/* Form */}
-           <form 
-  onSubmit={handleSubmit} 
-  className="space-y-4"
-  autoComplete="off"
->
+            <form
+              onSubmit={handleSubmit}
+              className="space-y-4"
+              autoComplete="off"
+            >
 
               {!isLogin && (
                 <Input
@@ -256,10 +256,10 @@ const AuthPage = () => {
 
               <Input
                 label="Email Address"
-  type="email"
-  name="auth_email"
-  placeholder="you@example.com"
-  autoComplete="off"
+                type="email"
+                name="auth_email"
+                placeholder="you@example.com"
+                autoComplete="off"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 error={errors.email}

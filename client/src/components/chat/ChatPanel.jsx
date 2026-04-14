@@ -91,7 +91,7 @@ const ChatPanel = ({ onClose }) => {
       roomId,
       message: {
         text,
-        userId: user.id, // ✅ IMPORTANT
+        userId: user.id, 
         user: {
           id: user.id,
           fullName: user.fullName,
